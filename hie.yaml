@@ -1,0 +1,13 @@
+cradle:
+  cabal:
+    - path: "src/Main.hs"
+      component: "milkshake:exe:milkshake"
+
+    - path: "src/Recipe.hs"
+      component: "milkshake:exe:milkshake"
+
+    - path: "src"
+      component: "lib:milkshake"
+
+    - path: "test"
+      component: "milkshake:test:milkshake-test"

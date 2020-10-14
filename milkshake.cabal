@@ -18,7 +18,8 @@ extra-source-files:  CHANGELOG.md, README.md
 
 executable milkshake
   main-is:             Main.hs
-  -- other-modules:
+  other-modules:
+    Recipe
   -- other-extensions:
   build-depends:
       base >=4.13 && <4.14
@@ -32,3 +33,43 @@ executable milkshake
         DeriveGeneric
   hs-source-dirs:      src
   default-language:    Haskell2010
+
+library
+  exposed-modules:
+    Recipe
+  -- other-extensions:
+  build-depends:
+      base >=4.13 && <4.14
+    , rio >=0.1.19 && <0.2
+    , dhall >=1.35 && <2
+    , shake >=0.19
+    , fsnotify >=0.3
+  default-extensions:
+        OverloadedStrings FlexibleContexts FlexibleInstances RecordWildCards
+        TypeFamilies GeneralizedNewtypeDeriving NamedFieldPuns LambdaCase
+        DeriveGeneric
+  hs-source-dirs:      src
+  default-language:    Haskell2010
+
+test-suite milkshake-test
+  type: exitcode-stdio-1.0
+  main-is:   Spec.hs
+  hs-source-dirs:
+      test
+  other-modules:
+      HSpec
+      Layer1Spec
+  build-depends:
+      base >=4.13 && <4.14
+    , rio >=0.1.19 && <0.2
+    , hspec >=2.7.4 && <3
+    , dhall >=1.35 && <2
+    , shake >=0.19
+    , fsnotify >=0.3
+    , milkshake
+  default-extensions:
+        OverloadedStrings FlexibleContexts FlexibleInstances RecordWildCards
+        TypeFamilies GeneralizedNewtypeDeriving NamedFieldPuns LambdaCase
+        DeriveGeneric
+  default-language:    Haskell2010
+  build-tool-depends: hspec-discover:hspec-discover == 2.*
