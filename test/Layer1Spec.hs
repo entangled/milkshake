@@ -5,7 +5,11 @@ module Layer1Spec (spec) where
 
 import RIO
 import qualified RIO.Text as T
-import RIO.Directory (getCurrentDirectory, setCurrentDirectory)
+
+import RIO.Directory (getCurrentDirectory, setCurrentDirectory, copyFile)
+import System.FilePath.Glob (glob)
+import RIO.FilePath ((</>), takeFileName)
+
 import Test.Hspec
 import Recipe
 import Dhall
@@ -29,15 +33,22 @@ enter _ = mempty
 runScript :: Text -> Shake.Action ()
 runScript = mapM_ (Shake.cmd_ Shake.Shell) . lines . T.unpack
 
-spec :: Spec
-spec = describe "Recipe" $ do
-    it "can load a list of actions" $ do
-        actionList <- input auto "./test/Layer1/test1.dhall" :: IO [Action]
-        actionList `shouldSatisfy` any (\a -> target a == [Main])
-    it "can run a list of actions" $ do
-        actionList <- input auto "./test/Layer1/test1.dhall" :: IO [Action]
+runInTmp :: MonadUnliftIO m => [String] -> m () -> m ()
+runInTmp cpy action = do
+    paths <- liftIO $ foldMapM glob cpy
+    withSystemTempDirectory "milkshake-" $ \tmp -> do
         cwd <- getCurrentDirectory
-        setCurrentDirectory "./test/Layer1"
-        shake shakeOptions (mapM_ enter actionList)
+        mapM_ (\f -> copyFile f (tmp </> takeFileName f)) paths
+        setCurrentDirectory tmp
+        action
         setCurrentDirectory cwd
+
+spec :: Spec
+spec = describe "Layer1" $ do
+    it "can load a list of actions" $ runInTmp ["./test/Layer1/*"] $ do
+        actionList <- input auto "./test1.dhall" :: IO [Action]
+        actionList `shouldSatisfy` any (\a -> target a == [Main])
+    it "can run a list of actions" $ runInTmp ["./test/Layer1/*"] $ do
+        actionList <- input auto "./test1.dhall" :: IO [Action]
+        shake shakeOptions (mapM_ enter actionList)
 -- ~\~ end

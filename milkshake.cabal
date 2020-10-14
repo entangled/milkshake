@@ -66,6 +66,7 @@ test-suite milkshake-test
     , dhall >=1.35 && <2
     , shake >=0.19
     , fsnotify >=0.3
+    , Glob >= 0.10 && <1
     , milkshake
   default-extensions:
         OverloadedStrings FlexibleContexts FlexibleInstances RecordWildCards
