@@ -19,7 +19,8 @@ extra-source-files:  CHANGELOG.md, README.md
 executable milkshake
   main-is:             Main.hs
   other-modules:
-    Recipe
+      Milkshake.Data
+      Milkshake.Run
   -- other-extensions:
   build-depends:
       base >=4.13 && <4.14
@@ -36,7 +37,8 @@ executable milkshake
 
 library
   exposed-modules:
-    Recipe
+      Milkshake.Data
+      Milkshake.Run
   -- other-extensions:
   build-depends:
       base >=4.13 && <4.14
@@ -58,7 +60,9 @@ test-suite milkshake-test
       test
   other-modules:
       HSpec
+      Util
       Layer1Spec
+      Layer2Spec
   build-depends:
       base >=4.13 && <4.14
     , rio >=0.1.19 && <0.2

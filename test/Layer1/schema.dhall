@@ -5,24 +5,26 @@ let List/map = https://prelude.dhall-lang.org/v11.1.0/List/map
 
 -- ~\~ begin <<lit/index.md|milkshake-target>>[0]
 let Content : Type =
-    { exists : Text
+    { name : Text
+    , exists : Text
     , hash : Text
     }
 
 let Target : Type =
     < File : Text
-    | Block : Text
     | Generic : Content
     | Phony : Text
-    | Main
     >
 -- ~\~ end
 -- ~\~ begin <<lit/index.md|milkshake-action>>[0]
-let Action : Type =
-    { target : List Target
-    , dependency : List Target
-    , script : Optional Text
+let Dependency = \(Tgt : Type) -> \(Dep : Type) ->
+    { target : Tgt
+    , dependency : Dep
     }
+
+let Action : Type =
+    { script : Optional Text
+    } //\\ (Dependency (List Target) (List Target))
 -- ~\~ end
 
 let file = \(target : Text) -> \(deps : List Text) -> \(script : Text) ->
@@ -31,7 +33,7 @@ let file = \(target : Text) -> \(deps : List Text) -> \(script : Text) ->
    , script = Some script } : Action
 
 let main = \(deps : List Text) ->
-    { target = [ Target.Main ]
+    { target = [ Target.Phony "main" ]
     , dependency = List/map Text Target Target.File deps
     , script = None Text } : Action
 
