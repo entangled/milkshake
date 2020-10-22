@@ -4,6 +4,7 @@
 module Milkshake.Data where
 
 import RIO
+import qualified RIO.Text as T
 import Dhall
 
 -- ~\~ begin <<lit/index.md|haskell-types>>[0]
@@ -52,5 +53,22 @@ data Trigger = Trigger
     deriving (Generic, Show)
 
 instance FromDhall Trigger
+-- ~\~ end
+-- ~\~ begin <<lit/index.md|haskell-types>>[4]
+data Stmt
+    = StmtAction Action
+    | StmtRule Rule
+    | StmtTrigger Trigger
+    | StmtInclude Target
+
+stmt :: Decoder Stmt
+stmt = union (
+       (StmtAction  <$> constructor "Action" auto)
+    <> (StmtRule    <$> constructor "Rule" auto)
+    <> (StmtTrigger <$> constructor "Trigger" auto)
+    <> (StmtInclude <$> constructor "Include" auto))
+
+readStmts :: (MonadIO m) => FilePath -> m [Stmt]
+readStmts path = liftIO $ input (list stmt) (T.pack path)
 -- ~\~ end
 -- ~\~ end

@@ -399,6 +399,7 @@ in
 module Milkshake.Data where
 
 import RIO
+import qualified RIO.Text as T
 import Dhall
 
 <<haskell-types>>
@@ -551,6 +552,46 @@ data Trigger = Trigger
 instance FromDhall Trigger
 ```
 
+### Statements
+The choice is between a hierarchical notation, where actions and rules are separated, or to join them in a sum type, so that we can read a list of statements. I chose the latter to make it easier to have an include statement, and also that things are a bit more flexible. We expose the `Stmt` type only through a series of factory functions, making refactoring very easy.
+
+``` {.dhall #milkshake-stmt}
+let Stmt : Type =
+    < Action  : Action
+    | Rule    : Rule
+    | Trigger : Trigger
+    | Include : Target >
+
+let action = \(tgt : List Target) -> \(dep : List Target) -> \(script : Optional Text) ->
+    Stmt.Action { target = tgt, dependency = dep, script = script }
+let rule = \(name : Text) -> \(gen : Generator) ->
+    Stmt.Rule { name = name, gen = gen }
+let trigger = \(name : Text) -> \(tgt : List Target) -> \(dep : List Target) ->
+    Stmt.Trigger { name = name, target = tgt, dependency = dep }
+let include = \(filename : Text) ->
+    Stmt.Include (Target.File filename)
+```
+
+We've reached the limits of GHC's `OverloadedLabels` extension to deal with this sum type, so we write an explicit decoder.
+
+``` {.haskell #haskell-types}
+data Stmt
+    = StmtAction Action
+    | StmtRule Rule
+    | StmtTrigger Trigger
+    | StmtInclude Target
+
+stmt :: Decoder Stmt
+stmt = union (
+       (StmtAction  <$> constructor "Action" auto)
+    <> (StmtRule    <$> constructor "Rule" auto)
+    <> (StmtTrigger <$> constructor "Trigger" auto)
+    <> (StmtInclude <$> constructor "Include" auto))
+
+readStmts :: (MonadIO m) => FilePath -> m [Stmt]
+readStmts path = liftIO $ input (list stmt) (T.pack path)
+```
+
 ###  Function transformers
 
 ``` {.dhall #milkshake-convenience}
@@ -591,23 +632,6 @@ let mainAction = \(deps : List Text) ->
 ```
 
 ### Schema
-
-``` {.dhall #milkshake-stmt}
-let Stmt : Type =
-    < Action  : Action
-    | Rule    : Rule
-    | Trigger : Trigger
-    | Include : Target >
-
-let action = \(tgt : List Target) -> \(dep : List Target) -> \(script : Optional Text) ->
-    Stmt.Action { target = tgt, dependency = dep, script = script }
-let rule = \(name : Text) -> \(gen : Generator) ->
-    Stmt.Rule { name = name, gen = gen }
-let trigger = \(name : Text) -> \(tgt : List Target) -> \(dep : List Target) ->
-    Stmt.Trigger { name = name, target = tgt, dependency = dep }
-let include = \(filename : Text) ->
-    Stmt.Include (Target.File filename)
-```
 
 ``` {.dhall file=test/Layer2/schema.dhall}
 let Prelude = https://prelude.dhall-lang.org/v19.0.0/package.dhall
@@ -679,9 +703,11 @@ import qualified RIO.Text as T
 import Test.Hspec
 import qualified RIO.Map as M
 
-import Milkshake.Data (Trigger(..), Rule(..), Action(..), Target(..), Generator)
+import Milkshake.Data
+    ( Trigger(..), Rule(..), Action(..), Target(..), Generator
+    , Stmt(..), readStmts)
 import Milkshake.Run (enter)
-import Dhall (auto, input, FromDhall, Decoder, constructor, union, list)
+import Dhall (input, list)
 
 import Development.Shake (shake, shakeOptions, ShakeOptions(..), Verbosity(..))
 import Util (runInTmp)
@@ -708,21 +734,6 @@ instance Monoid Config where
         , actions = mempty
         , includes = mempty }
 
-data Stmt
-    = StmtAction Action
-    | StmtRule Rule
-    | StmtTrigger Trigger
-    | StmtInclude Target
-
-stmt :: Decoder Stmt
-stmt = union (
-       (StmtAction  <$> constructor "Action" auto)
-    <> (StmtRule    <$> constructor "Rule" auto)
-    <> (StmtTrigger <$> constructor "Trigger" auto)
-    <> (StmtInclude <$> constructor "Include" auto))
-
-readStmts :: (MonadIO m) => FilePath -> m [Stmt]
-readStmts path = liftIO $ input (list stmt) (T.pack path)
 
 stmtsToConfig :: [Stmt] -> Config
 stmtsToConfig = foldMap toConfig
@@ -746,10 +757,10 @@ instance Exception MilkShakeError
 spec :: Spec
 spec = describe "Layer2" $ do
     it "can load a configuration" $ runInTmp ["./test/Layer2/*"] $ do
-        cfg <- stmtsToConfig <$> input (list stmt) "./test2.dhall"
+        cfg <- stmtsToConfig <$> readStmts "./test2.dhall"
         (actions cfg) `shouldSatisfy` any (\Action{..} -> target == [Phony "main"])
     it "can run all actions" $ runInTmp ["./test/Layer1/hello.c", "./test/Layer2/*"] $ do
-        cfg <- stmtsToConfig <$> input (list stmt) "./test2.dhall"
+        cfg <- stmtsToConfig <$> readStmts "./test2.dhall"
         (actions cfg) `shouldSatisfy` any (\Action{..} -> target == [Phony "main"])
         case mapM (fromTrigger cfg) (triggers cfg) of
             Left e -> throwM (ConfigError e)
@@ -766,3 +777,12 @@ Now that we have separated actions into rules and triggers, we can imagine a use
 The trick is to make this scan part of the workflow of actions. In C terms, `gcc -MM hello.c` depends on `hello.c`. We need to recognize the fact that the output of `gcc -MM` serves as input for more actions. In the most generic sense, we can imagine `gcc -M` also knowing the name of the rule it is providing the dependency relations for.
 
 We define `includes` to be a list of `Target`. Each item may be a literal include file or be associated with a rule.
+
+### Example 4
+
+``` {.dhall file=Layer3/test1.dhall}
+let ms = ../Layer2/schema.dhall
+
+in  [
+    ]
+```

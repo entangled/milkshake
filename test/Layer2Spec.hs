@@ -8,9 +8,11 @@ import qualified RIO.Text as T
 import Test.Hspec
 import qualified RIO.Map as M
 
-import Milkshake.Data (Trigger(..), Rule(..), Action(..), Target(..), Generator)
+import Milkshake.Data
+    ( Trigger(..), Rule(..), Action(..), Target(..), Generator
+    , Stmt(..), readStmts)
 import Milkshake.Run (enter)
-import Dhall (auto, input, FromDhall, Decoder, constructor, union, list)
+import Dhall (input, list)
 
 import Development.Shake (shake, shakeOptions, ShakeOptions(..), Verbosity(..))
 import Util (runInTmp)
@@ -37,21 +39,6 @@ instance Monoid Config where
         , actions = mempty
         , includes = mempty }
 
-data Stmt
-    = StmtAction Action
-    | StmtRule Rule
-    | StmtTrigger Trigger
-    | StmtInclude Target
-
-stmt :: Decoder Stmt
-stmt = union (
-       (StmtAction  <$> constructor "Action" auto)
-    <> (StmtRule    <$> constructor "Rule" auto)
-    <> (StmtTrigger <$> constructor "Trigger" auto)
-    <> (StmtInclude <$> constructor "Include" auto))
-
-readStmts :: (MonadIO m) => FilePath -> m [Stmt]
-readStmts path = liftIO $ input (list stmt) (T.pack path)
 
 stmtsToConfig :: [Stmt] -> Config
 stmtsToConfig = foldMap toConfig
@@ -75,10 +62,10 @@ instance Exception MilkShakeError
 spec :: Spec
 spec = describe "Layer2" $ do
     it "can load a configuration" $ runInTmp ["./test/Layer2/*"] $ do
-        cfg <- stmtsToConfig <$> input (list stmt) "./test2.dhall"
+        cfg <- stmtsToConfig <$> readStmts "./test2.dhall"
         (actions cfg) `shouldSatisfy` any (\Action{..} -> target == [Phony "main"])
     it "can run all actions" $ runInTmp ["./test/Layer1/hello.c", "./test/Layer2/*"] $ do
-        cfg <- stmtsToConfig <$> input (list stmt) "./test2.dhall"
+        cfg <- stmtsToConfig <$> readStmts "./test2.dhall"
         (actions cfg) `shouldSatisfy` any (\Action{..} -> target == [Phony "main"])
         case mapM (fromTrigger cfg) (triggers cfg) of
             Left e -> throwM (ConfigError e)
