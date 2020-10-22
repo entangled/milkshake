@@ -780,7 +780,7 @@ We define `includes` to be a list of `Target`. Each item may be a literal includ
 
 ### Example 4
 
-``` {.dhall file=Layer3/test1.dhall}
+``` {.dhall file=test/Layer3/test1.dhall}
 let ms = ../Layer2/schema.dhall
 
 in  [
