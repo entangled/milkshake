@@ -14,14 +14,19 @@ import Development.Shake (shake, shakeOptions, ShakeOptions(..), Verbosity(..))
 import Util (runInTmp)
 
 spec :: Spec
-spec = describe "Layer1" $ do
-    it "can load a list of actions" $ runInTmp ["./test/Layer1/*"] $ do
-        actionList <- input auto "./test1.dhall" :: IO [Action]
-        actionList `shouldSatisfy` any (\a -> target (a :: Action) == [ Phony "main" ])
-    it "can run a list of actions" $ runInTmp ["./test/Layer1/*"] $ do
-        actionList <- input auto "./test1.dhall" :: IO [Action]
-        shake (shakeOptions {shakeVerbosity = Diagnostic})
-              (mapM_ enter actionList)
-        result <- readFileUtf8 "out.txt"
-        result `shouldBe` "Hello, World!\n"
+spec = do
+    describe "Layer1" $ do
+        it "can load a list of actions" $ runInTmp ["./test/Layer1/*"] $ do
+            actionList <- input auto "./test1.dhall" :: IO [Action]
+            actionList `shouldSatisfy` any (\a -> target (a :: Action) == [ Phony "main" ])
+        it "can run a list of actions" $ runInTmp ["./test/Layer1/*"] $ do
+            actionList <- input auto "./test1.dhall" :: IO [Action]
+            shake (shakeOptions {shakeVerbosity = Diagnostic})
+                (mapM_ enter actionList)
+            result <- readFileUtf8 "out.txt"
+            result `shouldBe` "Hello, World!\n"
+    describe "Virtual Targets" $ do
+        it "can load" $ runInTmp ["./test/Layer1/*"] $ do
+            actionList <- input auto "./test2.dhall" :: IO [Action]
+            actionList `shouldSatisfy` any (\a -> target (a :: Action) == [ Phony "main" ])
 -- ~\~ end

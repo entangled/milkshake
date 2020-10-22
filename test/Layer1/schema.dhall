@@ -1,18 +1,20 @@
 -- ~\~ language=Dhall filename=test/Layer1/schema.dhall
 -- ~\~ begin <<lit/index.md|test/Layer1/schema.dhall>>[0]
-let List/map = https://prelude.dhall-lang.org/v11.1.0/List/map
-    sha256:dd845ffb4568d40327f2a817eb42d1c6138b929ca758d50bc33112ef3c885680
+let Prelude = https://prelude.dhall-lang.org/v19.0.0/package.dhall
+    sha256:eb693342eb769f782174157eba9b5924cf8ac6793897fc36a31ccbd6f56dafe2
+let List/map = Prelude.List.map
+let Text/concatSep = Prelude.Text.concatSep
 
 -- ~\~ begin <<lit/index.md|milkshake-target>>[0]
-let Content : Type =
+let Virtual : Type =
     { name : Text
-    , exists : Text
-    , hash : Text
+    , exists : Text    -- Script to check existence
+    , content : Text   -- Script to read content
     }
 
 let Target : Type =
     < File : Text
-    | Generic : Content
+    | Generic : Virtual
     | Phony : Text
     >
 -- ~\~ end
@@ -28,17 +30,18 @@ let Action : Type =
 -- ~\~ end
 
 let file = \(target : Text) -> \(deps : List Text) -> \(script : Text) ->
-   { target = [ Target.File target ]
-   , dependency = List/map Text Target Target.File deps
-   , script = Some script } : Action
+    { target = [ Target.File target ]
+    , dependency = List/map Text Target Target.File deps
+    , script = Some script }
 
 let main = \(deps : List Text) ->
     { target = [ Target.Phony "main" ]
     , dependency = List/map Text Target Target.File deps
-    , script = None Text } : Action
+    , script = None Text }
 
 in { Target = Target
    , Action = Action
+   , Virtual = Virtual
    , file = file
    , main = main }
 -- ~\~ end

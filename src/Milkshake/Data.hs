@@ -7,18 +7,18 @@ import RIO
 import Dhall
 
 -- ~\~ begin <<lit/index.md|haskell-types>>[0]
-data Content = Content
+data Virtual = Virtual
     { name :: Text
     , exists :: Text
-    , hash :: Text }
+    , content :: Text }
     deriving (Generic, Show, Eq)
 
-instance FromDhall Content
-instance ToDhall Content
+instance FromDhall Virtual
+instance ToDhall Virtual
 
 data Target
     = File Text
-    | Generic Content
+    | Generic Virtual
     | Phony Text
     deriving (Generic, Show, Eq)
 
@@ -35,7 +35,14 @@ data Action = Action
 instance FromDhall Action
 -- ~\~ end
 -- ~\~ begin <<lit/index.md|haskell-types>>[2]
-type Rule = [Target] -> [Target] -> Maybe Text
+type Generator = [Target] -> [Target] -> Maybe Text
+
+data Rule = Rule
+    { name :: Text
+    , gen :: Generator }
+    deriving (Generic)
+
+instance FromDhall Rule
 -- ~\~ end
 -- ~\~ begin <<lit/index.md|haskell-types>>[3]
 data Trigger = Trigger

@@ -241,32 +241,32 @@ We start at the first level. This is where we get a list of things that need to 
 We have a `Target` that describes an asset. A target can be a file or a database entry. A database entry should have a method of checking existence and content or a stable representation thereof (i.e. a hash). In this sense, a file is just a special case of a databse entry. We can read it using `cat` and get its modification time using `stat -c '%y'`. A `Target` can also be a named reference to an abstraction of an asset. Such an asset may not have an associated content, and would only be run if explicitly asked for. In Make this would be a `.PHONY` target.
 
 ``` {.dhall #milkshake-target}
-let Content : Type =
+let Virtual : Type =
     { name : Text
-    , exists : Text
-    , hash : Text
+    , exists : Text    -- Script to check existence
+    , content : Text   -- Script to read content
     }
 
 let Target : Type =
     < File : Text
-    | Generic : Content
+    | Generic : Virtual
     | Phony : Text
     >
 ```
 
 ``` {.haskell #haskell-types}
-data Content = Content
+data Virtual = Virtual
     { name :: Text
     , exists :: Text
-    , hash :: Text }
+    , content :: Text }
     deriving (Generic, Show, Eq)
 
-instance FromDhall Content
-instance ToDhall Content
+instance FromDhall Virtual
+instance ToDhall Virtual
 
 data Target
     = File Text
-    | Generic Content
+    | Generic Virtual
     | Phony Text
     deriving (Generic, Show, Eq)
 
@@ -304,24 +304,27 @@ Given all of the previous considerations, we can start building Milkshake layer 
 We add helper functions for defining a `file` action or the `main` action, which will serve as entry point.
 
 ``` {.dhall file=test/Layer1/schema.dhall}
-let List/map = https://prelude.dhall-lang.org/v11.1.0/List/map
-    sha256:dd845ffb4568d40327f2a817eb42d1c6138b929ca758d50bc33112ef3c885680
+let Prelude = https://prelude.dhall-lang.org/v19.0.0/package.dhall
+    sha256:eb693342eb769f782174157eba9b5924cf8ac6793897fc36a31ccbd6f56dafe2
+let List/map = Prelude.List.map
+let Text/concatSep = Prelude.Text.concatSep
 
 <<milkshake-target>>
 <<milkshake-action>>
 
 let file = \(target : Text) -> \(deps : List Text) -> \(script : Text) ->
-   { target = [ Target.File target ]
-   , dependency = List/map Text Target Target.File deps
-   , script = Some script } : Action
+    { target = [ Target.File target ]
+    , dependency = List/map Text Target Target.File deps
+    , script = Some script }
 
 let main = \(deps : List Text) ->
     { target = [ Target.Phony "main" ]
     , dependency = List/map Text Target Target.File deps
-    , script = None Text } : Action
+    , script = None Text }
 
 in { Target = Target
    , Action = Action
+   , Virtual = Virtual
    , file = file
    , main = main }
 ```
@@ -351,6 +354,42 @@ int main() {
     printf("Hello, World!\n");
     return EXIT_SUCCESS;
 }
+```
+
+### Example 2: Virtual targets, databases
+Don't know if we actually need this. For the moment, keep everything file based.
+
+``` {.dhall file=test/Layer1/test2.dhall}
+let ms = ./schema.dhall
+let entry =
+    { name = "entry"
+    , exists =
+        ''
+        test $(sqlite3 test.db 'select exists(select 1 from "messages" where "id" is 1)') == 1"
+        ''
+    , content =
+        ''
+        sqlite3 test.db 'select "content" from "messages" where "id" is 1'
+        ''
+    } : ms.Virtual
+in
+    [ ms.main [ "out.txt" ]
+    , { target = [ ms.Target.File "out.txt" ]
+      , dependency = [ ms.Target.Generic entry ]
+      , script = Some
+        ''
+        sqlite3 test.db 'select "content" from "messages" where "id" is 1' > out.txt
+        ''
+      }
+    , { target = [ ms.Target.Generic entry ]
+      , dependency = [] : List ms.Target
+      , script = Some
+        ''
+        sqlite3 test.db 'create table "messages" ("id" integer primary key, "content text")'
+        sqlite3 test.db 'insert into "messages" ("content") values (\\'We apologise for the inconvenience\\')'
+        ''
+      }
+    ]
 ```
 
 ### Loading the script
@@ -427,27 +466,44 @@ import Development.Shake (shake, shakeOptions, ShakeOptions(..), Verbosity(..))
 import Util (runInTmp)
 
 spec :: Spec
-spec = describe "Layer1" $ do
-    it "can load a list of actions" $ runInTmp ["./test/Layer1/*"] $ do
-        actionList <- input auto "./test1.dhall" :: IO [Action]
-        actionList `shouldSatisfy` any (\a -> target (a :: Action) == [ Phony "main" ])
-    it "can run a list of actions" $ runInTmp ["./test/Layer1/*"] $ do
-        actionList <- input auto "./test1.dhall" :: IO [Action]
-        shake (shakeOptions {shakeVerbosity = Diagnostic})
-              (mapM_ enter actionList)
-        result <- readFileUtf8 "out.txt"
-        result `shouldBe` "Hello, World!\n"
+spec = do
+    describe "Layer1" $ do
+        it "can load a list of actions" $ runInTmp ["./test/Layer1/*"] $ do
+            actionList <- input auto "./test1.dhall" :: IO [Action]
+            actionList `shouldSatisfy` any (\a -> target (a :: Action) == [ Phony "main" ])
+        it "can run a list of actions" $ runInTmp ["./test/Layer1/*"] $ do
+            actionList <- input auto "./test1.dhall" :: IO [Action]
+            shake (shakeOptions {shakeVerbosity = Diagnostic})
+                (mapM_ enter actionList)
+            result <- readFileUtf8 "out.txt"
+            result `shouldBe` "Hello, World!\n"
+    describe "Virtual Targets" $ do
+        it "can load" $ runInTmp ["./test/Layer1/*"] $ do
+            actionList <- input auto "./test2.dhall" :: IO [Action]
+            actionList `shouldSatisfy` any (\a -> target (a :: Action) == [ Phony "main" ])
 ```
 
 ## Second Layer: rules and triggers
 The second level is when we can generate content, targets or actions based on function applications and patterns. The prime example we have seen before is that of a pattern rule in Make. We'd like to extend that to the use case of running scripts based on code-block content.
 
 ``` {.dhall #milkshake-rule}
-let Rule : Type = List Target -> List Target -> Optional Text
+let Generator : Type =
+    List Target -> List Target -> Optional Text
+let Rule : Type =
+    { name : Text
+    , gen : Generator
+    }
 ```
 
 ``` {.haskell #haskell-types}
-type Rule = [Target] -> [Target] -> Maybe Text
+type Generator = [Target] -> [Target] -> Maybe Text
+
+data Rule = Rule
+    { name :: Text
+    , gen :: Generator }
+    deriving (Generic)
+
+instance FromDhall Rule
 ```
 
 In the GnuPlot example we saw how we could write down a script and link a figure to that script with `{using=#script-id}`.
@@ -477,6 +533,13 @@ the target would be `File "script-output.txt"` and dependencies `[ Block "hello"
 }
 ```
 
+### Triggers
+
+``` {.dhall #milkshake-trigger}
+let Trigger : Type =
+    { name : Text
+    } //\\ (Dependency (List Target) (List Target))
+```
 
 ``` {.haskell #haskell-types}
 data Trigger = Trigger
@@ -486,6 +549,64 @@ data Trigger = Trigger
     deriving (Generic, Show)
 
 instance FromDhall Trigger
+```
+
+###  Function transformers
+
+``` {.dhall #milkshake-convenience}
+let fileName = \(a : Target) ->
+    merge { File = \(x : Text) -> Some x
+          , Generic = \(_ : Virtual) -> None Text
+          , Phony =   \(_ : Text) -> None Text } a
+
+let Target/isFile = \(a : Target) ->
+    merge { File = \(_ : Text) -> True
+          , Generic = \(_ : Virtual) -> False
+          , Phony = \(_ : Text) -> False } a
+
+let getFiles = \(a : List Target) ->
+    Prelude.List.unpackOptionals Text (List/map Target (Optional Text) fileName a)
+
+let testGetFiles = assert : getFiles [ Target.File "a", Target.Phony "m", Target.File "b" ]
+                        === [ "a", "b"]
+
+let fileRule = \(name : Text) -> \(f : Text -> List Text -> Text) ->
+     rule name (\(tgt : List Target) -> \(dep : List Target) ->
+        merge { Some = \(inp : Text) -> Some (f inp (getFiles dep))
+            , None = None Text } (List/head Text (getFiles tgt)))
+```
+
+``` {.dhall #milkshake-convenience}
+let fileAction = \(target : Text) -> \(deps : List Text) -> \(script : Text) ->
+    Stmt.Action
+        { target = [ Target.File target ]
+        , dependency = List/map Text Target Target.File deps
+        , script = Some script }
+
+let mainAction = \(deps : List Text) ->
+    Stmt.Action
+        { target = [ Target.Phony "main" ]
+        , dependency = List/map Text Target Target.File deps
+        , script = None Text }
+```
+
+### Schema
+
+``` {.dhall #milkshake-stmt}
+let Stmt : Type =
+    < Action  : Action
+    | Rule    : Rule
+    | Trigger : Trigger
+    | Include : Target >
+
+let action = \(tgt : List Target) -> \(dep : List Target) -> \(script : Optional Text) ->
+    Stmt.Action { target = tgt, dependency = dep, script = script }
+let rule = \(name : Text) -> \(gen : Generator) ->
+    Stmt.Rule { name = name, gen = gen }
+let trigger = \(name : Text) -> \(tgt : List Target) -> \(dep : List Target) ->
+    Stmt.Trigger { name = name, target = tgt, dependency = dep }
+let include = \(filename : Text) ->
+    Stmt.Include (Target.File filename)
 ```
 
 ``` {.dhall file=test/Layer2/schema.dhall}
@@ -499,57 +620,25 @@ let Map/Entry = Prelude.Map.Entry
 --     sha256:dd845ffb4568d40327f2a817eb42d1c6138b929ca758d50bc33112ef3c885680
 -- let List/unpackOptionals = https://prelude.dhall-lang.org/v11.1.0/List/unpackOptionals
 --     sha256:0cbaa920f429cf7fc3907f8a9143203fe948883913560e6e1043223e6b3d05e4
+
 <<milkshake-target>>
 <<milkshake-action>>
 <<milkshake-trigger>>
 <<milkshake-rule>>
-let fileName = \(a : Target) ->
-    merge { File = \(x : Text) -> Some x
-          , Generic = \(_ : Content) -> None Text
-          , Phony =   \(_ : Text) -> None Text } a
+<<milkshake-stmt>>
+<<milkshake-convenience>>
 
-let Target/isFile = \(a : Target) ->
-    merge { File = \(_ : Text) -> True
-          , Generic = \(_ : Content) -> False
-          , Phony = \(_ : Text) -> False } a
-
-let getFiles = \(a : List Target) ->
-    Prelude.List.unpackOptionals Text (List/map Target (Optional Text) fileName a)
-
-let testGetFiles = assert : getFiles [ Target.File "a", Target.Phony "m", Target.File "b" ]
-                        === [ "a", "b"]
-
-let fileRule = \(f : Text -> List Text -> Text) ->
-     \(tgt : List Target) -> \(dep : List Target) ->
-     merge { Some = \(inp : Text) -> Some (f inp (getFiles dep))
-           , None = None Text } (List/head Text (getFiles tgt))
-
-let exampleRule1 = fileRule (\(tgt : Text) -> \(deps : List Text) -> 
-                             "gcc ${Text/concatSep " " deps} -o ${tgt}")
-let testFileRule = assert : exampleRule1 [ Target.File "hello" ] [ Target.File "hello.c" ]
-                 === Some "gcc hello.c -o hello"
-
-let file = \(target : Text) -> \(deps : List Text) -> \(script : Text) ->
-    { target = [ Target.File target ]
-    , dependency = List/map Text Target Target.File deps
-    , script = Some script } : Action
-
-let main = \(deps : List Text) ->
-    { target = [ Target.Phony "main" ]
-    , dependency = List/map Text Target Target.File deps
-    , script = None Text } : Action
-
-in  { Target = Target
-    , Action = Action
-    , Trigger = Trigger
-    , Rule = Rule
+in  { Stmt = Stmt
+    , Target = Target, action = action, rule = rule, trigger = trigger, include = include
     , fileName = fileName
     , getFiles = getFiles
     , fileRule = fileRule
-    , file = file
-    , main = main
+    , fileAction = fileAction
+    , mainAction = mainAction
     }
 ```
+
+### Example 3: compiling C in two steps
 
 ``` {.dhall file=test/Layer2/test2.dhall}
 let Text/concatSep = https://prelude.dhall-lang.org/Text/concatSep
@@ -557,31 +646,28 @@ let Text/concatSep = https://prelude.dhall-lang.org/Text/concatSep
 
 let ms = ./schema.dhall
 
-in
-    { rules = toMap
-        { compile = ms.fileRule (\(tgt : Text) -> \(deps : List Text) ->
-            ''
-            gcc -c ${Text/concatSep " " deps} -o ${tgt}
-            '')
-        , link = ms.fileRule (\(tgt : Text) -> \(deps : List Text) ->
-            ''
-            gcc ${Text/concatSep " " deps} -o ${tgt}
-            '')
-        }
-    , triggers =
-        [ { name = "compile", target = [ ms.Target.File "hello.o" ]
-          , dependency = [ ms.Target.File "hello.c" ] }
-        , { name = "link", target = [ ms.Target.File "hello" ]
-          , dependency = [ ms.Target.File "hello.o" ] }
-        ] : List ms.Trigger
-    , actions =
-        [ ms.file "out.txt" [ "hello" ]
-            ''
-            ./hello > out.txt
-            ''
-        , ms.main [ "out.txt" ]
-        ]
-    }
+in  [ ms.fileRule "compile" (\(tgt : Text) -> \(deps : List Text) ->
+        ''
+        gcc -c ${Text/concatSep " " deps} -o ${tgt}
+        '')
+    , ms.fileRule "link" (\(tgt : Text) -> \(deps : List Text) ->
+        ''
+        gcc ${Text/concatSep " " deps} -o ${tgt}
+        '')
+
+    , ms.trigger "compile"
+        [ ms.Target.File "hello.o" ]
+        [ ms.Target.File "hello.c" ]
+    , ms.trigger "link"
+        [ ms.Target.File "hello" ]
+        [ ms.Target.File "hello.o" ]
+
+    , ms.fileAction "out.txt" [ "hello" ]
+        ''
+        ./hello > out.txt
+        ''
+    , ms.mainAction [ "out.txt" ]
+    ] : List ms.Stmt
 ```
 
 ``` {.haskell file=test/Layer2Spec.hs}
@@ -589,23 +675,61 @@ in
 module Layer2Spec (spec) where
 
 import RIO
+import qualified RIO.Text as T
 import Test.Hspec
 import qualified RIO.Map as M
 
-import Milkshake.Data (Trigger(..), Rule, Action(..), Target(..))
+import Milkshake.Data (Trigger(..), Rule(..), Action(..), Target(..), Generator)
 import Milkshake.Run (enter)
-import Dhall (auto, input, FromDhall)
+import Dhall (auto, input, FromDhall, Decoder, constructor, union, list)
 
 import Development.Shake (shake, shakeOptions, ShakeOptions(..), Verbosity(..))
 import Util (runInTmp)
 
 data Config = Config
-    { rules :: M.Map Text Rule
+    { rules :: M.Map Text Generator
     , triggers :: [Trigger]
-    , actions :: [Action] }
+    , actions :: [Action]
+    , includes :: [Target] }
     deriving (Generic)
 
-instance FromDhall Config
+instance Semigroup Config where
+    a <> b = Config
+        { rules = (rules a) <> (rules b)
+        , triggers = (triggers a) <> (triggers b)
+        , actions = (actions a) <> (actions b)
+        , includes = (includes a) <> (includes b)
+        }
+
+instance Monoid Config where
+    mempty = Config
+        { rules = mempty
+        , triggers = mempty
+        , actions = mempty
+        , includes = mempty }
+
+data Stmt
+    = StmtAction Action
+    | StmtRule Rule
+    | StmtTrigger Trigger
+    | StmtInclude Target
+
+stmt :: Decoder Stmt
+stmt = union (
+       (StmtAction  <$> constructor "Action" auto)
+    <> (StmtRule    <$> constructor "Rule" auto)
+    <> (StmtTrigger <$> constructor "Trigger" auto)
+    <> (StmtInclude <$> constructor "Include" auto))
+
+readStmts :: (MonadIO m) => FilePath -> m [Stmt]
+readStmts path = liftIO $ input (list stmt) (T.pack path)
+
+stmtsToConfig :: [Stmt] -> Config
+stmtsToConfig = foldMap toConfig
+    where toConfig (StmtAction a) = mempty { actions = [a] }
+          toConfig (StmtRule (Rule {..}))   = mempty { rules = M.singleton name gen }
+          toConfig (StmtTrigger t) = mempty { triggers = [t] }
+          toConfig (StmtInclude i) = mempty { includes = [i] }
 
 fromTrigger :: Config -> Trigger -> Either Text Action
 fromTrigger cfg Trigger{..} = case rule of
@@ -622,10 +746,10 @@ instance Exception MilkShakeError
 spec :: Spec
 spec = describe "Layer2" $ do
     it "can load a configuration" $ runInTmp ["./test/Layer2/*"] $ do
-        cfg <- input auto "./test2.dhall" :: IO Config
+        cfg <- stmtsToConfig <$> input (list stmt) "./test2.dhall"
         (actions cfg) `shouldSatisfy` any (\Action{..} -> target == [Phony "main"])
     it "can run all actions" $ runInTmp ["./test/Layer1/hello.c", "./test/Layer2/*"] $ do
-        cfg <- input auto "./test2.dhall" :: IO Config
+        cfg <- stmtsToConfig <$> input (list stmt) "./test2.dhall"
         (actions cfg) `shouldSatisfy` any (\Action{..} -> target == [Phony "main"])
         case mapM (fromTrigger cfg) (triggers cfg) of
             Left e -> throwM (ConfigError e)
@@ -636,13 +760,9 @@ spec = describe "Layer2" $ do
                 result `shouldBe` "Hello, World!\n"
 ```
 
-## Pre-scan
-A lot of the targets will depend on a processed version of the input markdown. If a file is tangled from the markdown, it is a target. Also in the less trivial case discussed before, with the `using=` clause, we define a target. Entangled will have to generate a list of targets, dependencies and triggers.
+## Third Layer: the scan
+Now that we have separated actions into rules and triggers, we can imagine a user defining a set of rules, and a situation, script, workflow needing/generating a set of triggers for us. In the case of compiling a C program, the scan would list the dependencies of an object file as being the related source file and headers (retrieved with `gcc -MM`). In the case of Entangled we get a list of target files that depend on being tangled from a list of markdown source files.
 
-``` {.dhall #milkshake-trigger}
-let Trigger : Type =
-    { name : Text
-    } //\\ (Dependency (List Target) (List Target))
-```
+The trick is to make this scan part of the workflow of actions. In C terms, `gcc -MM hello.c` depends on `hello.c`. We need to recognize the fact that the output of `gcc -MM` serves as input for more actions. In the most generic sense, we can imagine `gcc -M` also knowing the name of the rule it is providing the dependency relations for.
 
-There is the case where we'd like to trigger Entangled itself through watches.
+We define `includes` to be a list of `Target`. Each item may be a literal include file or be associated with a rule.

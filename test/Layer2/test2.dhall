@@ -5,29 +5,26 @@ let Text/concatSep = https://prelude.dhall-lang.org/Text/concatSep
 
 let ms = ./schema.dhall
 
-in
-    { rules = toMap
-        { compile = ms.fileRule (\(tgt : Text) -> \(deps : List Text) ->
-            ''
-            gcc -c ${Text/concatSep " " deps} -o ${tgt}
-            '')
-        , link = ms.fileRule (\(tgt : Text) -> \(deps : List Text) ->
-            ''
-            gcc ${Text/concatSep " " deps} -o ${tgt}
-            '')
-        }
-    , triggers =
-        [ { name = "compile", target = [ ms.Target.File "hello.o" ]
-          , dependency = [ ms.Target.File "hello.c" ] }
-        , { name = "link", target = [ ms.Target.File "hello" ]
-          , dependency = [ ms.Target.File "hello.o" ] }
-        ] : List ms.Trigger
-    , actions =
-        [ ms.file "out.txt" [ "hello" ]
-            ''
-            ./hello > out.txt
-            ''
-        , ms.main [ "out.txt" ]
-        ]
-    }
+in  [ ms.fileRule "compile" (\(tgt : Text) -> \(deps : List Text) ->
+        ''
+        gcc -c ${Text/concatSep " " deps} -o ${tgt}
+        '')
+    , ms.fileRule "link" (\(tgt : Text) -> \(deps : List Text) ->
+        ''
+        gcc ${Text/concatSep " " deps} -o ${tgt}
+        '')
+
+    , ms.trigger "compile"
+        [ ms.Target.File "hello.o" ]
+        [ ms.Target.File "hello.c" ]
+    , ms.trigger "link"
+        [ ms.Target.File "hello" ]
+        [ ms.Target.File "hello.o" ]
+
+    , ms.fileAction "out.txt" [ "hello" ]
+        ''
+        ./hello > out.txt
+        ''
+    , ms.mainAction [ "out.txt" ]
+    ] : List ms.Stmt
 -- ~\~ end
