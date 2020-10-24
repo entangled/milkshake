@@ -4,48 +4,17 @@
 module Layer2Spec (spec) where
 
 import RIO
-import qualified RIO.Text as T
+-- import qualified RIO.Text as T
 import Test.Hspec
 import qualified RIO.Map as M
 
 import Milkshake.Data
-    ( Trigger(..), Rule(..), Action(..), Target(..), Generator
-    , Stmt(..), readStmts)
+    ( Trigger(..), Action(..), Target(..)
+    , readStmts, Config(..), stmtsToConfig)
 import Milkshake.Run (enter)
-import Dhall (input, list)
 
 import Development.Shake (shake, shakeOptions, ShakeOptions(..), Verbosity(..))
 import Util (runInTmp)
-
-data Config = Config
-    { rules :: M.Map Text Generator
-    , triggers :: [Trigger]
-    , actions :: [Action]
-    , includes :: [Target] }
-    deriving (Generic)
-
-instance Semigroup Config where
-    a <> b = Config
-        { rules = (rules a) <> (rules b)
-        , triggers = (triggers a) <> (triggers b)
-        , actions = (actions a) <> (actions b)
-        , includes = (includes a) <> (includes b)
-        }
-
-instance Monoid Config where
-    mempty = Config
-        { rules = mempty
-        , triggers = mempty
-        , actions = mempty
-        , includes = mempty }
-
-
-stmtsToConfig :: [Stmt] -> Config
-stmtsToConfig = foldMap toConfig
-    where toConfig (StmtAction a) = mempty { actions = [a] }
-          toConfig (StmtRule (Rule {..}))   = mempty { rules = M.singleton name gen }
-          toConfig (StmtTrigger t) = mempty { triggers = [t] }
-          toConfig (StmtInclude i) = mempty { includes = [i] }
 
 fromTrigger :: Config -> Trigger -> Either Text Action
 fromTrigger cfg Trigger{..} = case rule of

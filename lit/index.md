@@ -396,10 +396,15 @@ in
 
 ``` {.haskell file=src/Milkshake/Data.hs}
 {-# LANGUAGE NoImplicitPrelude,DuplicateRecordFields,OverloadedLabels #-}
+{-# LANGUAGE DerivingStrategies,DerivingVia,DataKinds,UndecidableInstances #-}
+
 module Milkshake.Data where
 
 import RIO
 import qualified RIO.Text as T
+import qualified RIO.Map as M
+
+import Data.Monoid.Generic (GenericSemigroup(..), GenericMonoid(..))
 import Dhall
 
 <<haskell-types>>
@@ -694,46 +699,15 @@ in  [ ms.fileRule "compile" (\(tgt : Text) -> \(deps : List Text) ->
     ] : List ms.Stmt
 ```
 
-``` {.haskell file=test/Layer2Spec.hs}
-{-# LANGUAGE NoImplicitPrelude,DuplicateRecordFields,OverloadedLabels #-}
-module Layer2Spec (spec) where
-
-import RIO
-import qualified RIO.Text as T
-import Test.Hspec
-import qualified RIO.Map as M
-
-import Milkshake.Data
-    ( Trigger(..), Rule(..), Action(..), Target(..), Generator
-    , Stmt(..), readStmts)
-import Milkshake.Run (enter)
-import Dhall (input, list)
-
-import Development.Shake (shake, shakeOptions, ShakeOptions(..), Verbosity(..))
-import Util (runInTmp)
-
+``` {.haskell #haskell-types}
 data Config = Config
     { rules :: M.Map Text Generator
     , triggers :: [Trigger]
     , actions :: [Action]
     , includes :: [Target] }
     deriving (Generic)
-
-instance Semigroup Config where
-    a <> b = Config
-        { rules = (rules a) <> (rules b)
-        , triggers = (triggers a) <> (triggers b)
-        , actions = (actions a) <> (actions b)
-        , includes = (includes a) <> (includes b)
-        }
-
-instance Monoid Config where
-    mempty = Config
-        { rules = mempty
-        , triggers = mempty
-        , actions = mempty
-        , includes = mempty }
-
+    deriving Semigroup via GenericSemigroup Config
+    deriving Monoid    via GenericMonoid Config
 
 stmtsToConfig :: [Stmt] -> Config
 stmtsToConfig = foldMap toConfig
@@ -741,6 +715,24 @@ stmtsToConfig = foldMap toConfig
           toConfig (StmtRule (Rule {..}))   = mempty { rules = M.singleton name gen }
           toConfig (StmtTrigger t) = mempty { triggers = [t] }
           toConfig (StmtInclude i) = mempty { includes = [i] }
+```
+
+``` {.haskell file=test/Layer2Spec.hs}
+{-# LANGUAGE NoImplicitPrelude,DuplicateRecordFields,OverloadedLabels #-}
+module Layer2Spec (spec) where
+
+import RIO
+-- import qualified RIO.Text as T
+import Test.Hspec
+import qualified RIO.Map as M
+
+import Milkshake.Data
+    ( Trigger(..), Action(..), Target(..)
+    , readStmts, Config(..), stmtsToConfig)
+import Milkshake.Run (enter)
+
+import Development.Shake (shake, shakeOptions, ShakeOptions(..), Verbosity(..))
+import Util (runInTmp)
 
 fromTrigger :: Config -> Trigger -> Either Text Action
 fromTrigger cfg Trigger{..} = case rule of
@@ -778,11 +770,82 @@ The trick is to make this scan part of the workflow of actions. In C terms, `gcc
 
 We define `includes` to be a list of `Target`. Each item may be a literal include file or be associated with a rule.
 
-### Example 4
+### Example 4: generated include
+The schema doesn't change.
+
+``` {.dhall file=test/Layer3/schema.dhall #test/Layer2/schema.dhall}
+
+```
+
+We have one template that generates an action.
+
+``` {.dhall file=test/Layer3/template.dhall}
+let ms = ./schema.dhall
+
+in \(x : Natural) ->
+    [ ms.fileAction "answer.txt" ([] : List Text)
+        ''
+        echo "${Natural/show x}" > answer.txt
+        ''
+    ]
+```
+
+The main file imports the generated include
 
 ``` {.dhall file=test/Layer3/test1.dhall}
-let ms = ../Layer2/schema.dhall
+let ms = ./schema.dhall
 
-in  [
+in  [ ms.fileAction "include.dhall" ([] : List Text)
+        ''
+        dhall <<< "./template.dhall 42" > include.dhall
+        ''
+    , ms.include "include.dhall"
+    , ms.mainAction ["answer.txt"]
     ]
+```
+
+### The recursion
+
+``` {.haskell file=test/Layer3Spec.hs}
+{-# LANGUAGE NoImplicitPrelude,DuplicateRecordFields,OverloadedLabels #-}
+module Layer3Spec (spec) where
+
+import RIO
+import Test.Hspec
+import qualified RIO.Map as M
+
+import Milkshake.Data
+    ( Trigger(..), Action(..), Target(..)
+    , readStmts, Config(..), stmtsToConfig)
+import Milkshake.Run (enter)
+
+import Development.Shake (shake, shakeOptions, ShakeOptions(..), Verbosity(..))
+import Util (runInTmp)
+
+fromTrigger :: Config -> Trigger -> Either Text Action
+fromTrigger cfg Trigger{..} = case rule of
+    Just r  -> Right $ Action target dependency (r target dependency)
+    Nothing -> Left $ "No such rule: " <> name
+    where rule = (rules cfg) M.!? name
+
+data MilkShakeError
+    = ConfigError Text
+    deriving (Show, Eq)
+
+instance Exception MilkShakeError
+
+spec :: Spec
+spec = describe "Layer3" $ do
+    it "can load a configuration" $ runInTmp ["./test/Layer3/*"] $ do
+        cfg <- stmtsToConfig <$> readStmts "./test1.dhall"
+        (actions cfg) `shouldSatisfy` any (\Action{..} -> target == [Phony "main"])
+    -- it "can run all actions" $ runInTmp ["./test/Layer1/hello.c", "./test/Layer2/*"] $ do
+    --     cfg <- stmtsToConfig <$> readStmts "./test1.dhall"
+    --     case mapM (fromTrigger cfg) (triggers cfg) of
+    --         Left e -> throwM (ConfigError e)
+    --         Right as -> do
+    --             let actionList = (actions cfg) <> as
+    --             shake (shakeOptions { shakeVerbosity = Diagnostic }) (mapM_ enter actionList)
+    --             result <- readFileUtf8 "out.txt"
+    --             result `shouldBe` "Hello, World!\n"
 ```

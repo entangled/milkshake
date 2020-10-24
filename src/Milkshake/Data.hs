@@ -1,10 +1,15 @@
 -- ~\~ language=Haskell filename=src/Milkshake/Data.hs
 -- ~\~ begin <<lit/index.md|src/Milkshake/Data.hs>>[0]
 {-# LANGUAGE NoImplicitPrelude,DuplicateRecordFields,OverloadedLabels #-}
+{-# LANGUAGE DerivingStrategies,DerivingVia,DataKinds,UndecidableInstances #-}
+
 module Milkshake.Data where
 
 import RIO
 import qualified RIO.Text as T
+import qualified RIO.Map as M
+
+import Data.Monoid.Generic (GenericSemigroup(..), GenericMonoid(..))
 import Dhall
 
 -- ~\~ begin <<lit/index.md|haskell-types>>[0]
@@ -70,5 +75,22 @@ stmt = union (
 
 readStmts :: (MonadIO m) => FilePath -> m [Stmt]
 readStmts path = liftIO $ input (list stmt) (T.pack path)
+-- ~\~ end
+-- ~\~ begin <<lit/index.md|haskell-types>>[5]
+data Config = Config
+    { rules :: M.Map Text Generator
+    , triggers :: [Trigger]
+    , actions :: [Action]
+    , includes :: [Target] }
+    deriving (Generic)
+    deriving Semigroup via GenericSemigroup Config
+    deriving Monoid    via GenericMonoid Config
+
+stmtsToConfig :: [Stmt] -> Config
+stmtsToConfig = foldMap toConfig
+    where toConfig (StmtAction a) = mempty { actions = [a] }
+          toConfig (StmtRule (Rule {..}))   = mempty { rules = M.singleton name gen }
+          toConfig (StmtTrigger t) = mempty { triggers = [t] }
+          toConfig (StmtInclude i) = mempty { includes = [i] }
 -- ~\~ end
 -- ~\~ end

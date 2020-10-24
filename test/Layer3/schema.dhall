@@ -1,4 +1,4 @@
--- ~\~ language=Dhall filename=test/Layer2/schema.dhall
+-- ~\~ language=Dhall filename=test/Layer3/schema.dhall
 -- ~\~ begin <<lit/index.md|test/Layer2/schema.dhall>>[0]
 let Prelude = https://prelude.dhall-lang.org/v19.0.0/package.dhall
     sha256:eb693342eb769f782174157eba9b5924cf8ac6793897fc36a31ccbd6f56dafe2

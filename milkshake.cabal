@@ -24,6 +24,7 @@ executable milkshake
   -- other-extensions:
   build-depends:
       base >=4.13 && <4.14
+    , generic-monoid >=0.1 && <0.2
     , rio >=0.1.19 && <0.2
     , dhall >=1.35 && <2
     , shake >=0.19
@@ -42,6 +43,7 @@ library
   -- other-extensions:
   build-depends:
       base >=4.13 && <4.14
+    , generic-monoid >=0.1 && <0.2
     , rio >=0.1.19 && <0.2
     , dhall >=1.35 && <2
     , shake >=0.19
@@ -63,8 +65,10 @@ test-suite milkshake-test
       Util
       Layer1Spec
       Layer2Spec
+      Layer3Spec
   build-depends:
       base >=4.13 && <4.14
+    , generic-monoid >=0.1 && <0.2
     , rio >=0.1.19 && <0.2
     , hspec >=2.7.4 && <3
     , dhall >=1.35 && <2
