@@ -64,14 +64,16 @@ data Stmt
     = StmtAction Action
     | StmtRule Rule
     | StmtTrigger Trigger
-    | StmtInclude Target
+    | StmtInclude FilePath
+    | StmtMain [FilePath]
 
 stmt :: Decoder Stmt
 stmt = union (
        (StmtAction  <$> constructor "Action" auto)
     <> (StmtRule    <$> constructor "Rule" auto)
     <> (StmtTrigger <$> constructor "Trigger" auto)
-    <> (StmtInclude <$> constructor "Include" auto))
+    <> (StmtInclude <$> constructor "Include" auto)
+    <> (StmtMain    <$> constructor "Main" auto))
 
 readStmts :: (MonadIO m) => FilePath -> m [Stmt]
 readStmts path = liftIO $ input (list stmt) (T.pack path)
@@ -81,7 +83,8 @@ data Config = Config
     { rules :: M.Map Text Generator
     , triggers :: [Trigger]
     , actions :: [Action]
-    , includes :: [Target] }
+    , includes :: [FilePath]
+    , main     :: [FilePath] }
     deriving (Generic)
     deriving Semigroup via GenericSemigroup Config
     deriving Monoid    via GenericMonoid Config
@@ -92,5 +95,6 @@ stmtsToConfig = foldMap toConfig
           toConfig (StmtRule (Rule {..}))   = mempty { rules = M.singleton name gen }
           toConfig (StmtTrigger t) = mempty { triggers = [t] }
           toConfig (StmtInclude i) = mempty { includes = [i] }
+          toConfig (StmtMain m) = mempty { main = m }
 -- ~\~ end
 -- ~\~ end

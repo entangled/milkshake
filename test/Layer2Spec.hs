@@ -6,27 +6,12 @@ module Layer2Spec (spec) where
 import RIO
 -- import qualified RIO.Text as T
 import Test.Hspec
-import qualified RIO.Map as M
 
-import Milkshake.Data
-    ( Trigger(..), Action(..), Target(..)
-    , readStmts, Config(..), stmtsToConfig)
-import Milkshake.Run (enter)
+import Milkshake.Data (Action(..), Target(..), readStmts, Config(..), stmtsToConfig)
+import Milkshake.Run (enter, fromTrigger)
 
-import Development.Shake (shake, shakeOptions, ShakeOptions(..), Verbosity(..))
+import Development.Shake (shake, shakeOptions)
 import Util (runInTmp)
-
-fromTrigger :: Config -> Trigger -> Either Text Action
-fromTrigger cfg Trigger{..} = case rule of
-    Just r  -> Right $ Action target dependency (r target dependency)
-    Nothing -> Left $ "No such rule: " <> name
-    where rule = (rules cfg) M.!? name
-
-data MilkShakeError
-    = ConfigError Text
-    deriving (Show, Eq)
-
-instance Exception MilkShakeError
 
 spec :: Spec
 spec = describe "Layer2" $ do
@@ -37,10 +22,10 @@ spec = describe "Layer2" $ do
         cfg <- stmtsToConfig <$> readStmts "./test2.dhall"
         (actions cfg) `shouldSatisfy` any (\Action{..} -> target == [Phony "main"])
         case mapM (fromTrigger cfg) (triggers cfg) of
-            Left e -> throwM (ConfigError e)
+            Left e -> throwM e
             Right as -> do
                 let actionList = (actions cfg) <> as
-                shake (shakeOptions { shakeVerbosity = Diagnostic }) (mapM_ enter actionList)
+                shake shakeOptions (mapM_ enter actionList)
                 result <- readFileUtf8 "out.txt"
                 result `shouldBe` "Hello, World!\n"
 -- ~\~ end

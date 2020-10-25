@@ -7,6 +7,6 @@ in  [ ms.fileAction "include.dhall" ([] : List Text)
         dhall <<< "./template.dhall 42" > include.dhall
         ''
     , ms.include "include.dhall"
-    , ms.mainAction ["answer.txt"]
+    , ms.main ["answer.txt"]
     ]
 -- ~\~ end

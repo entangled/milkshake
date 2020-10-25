@@ -235,6 +235,22 @@ spec = do
             2 + 2 `shouldNotBe` 5
 ```
 
+## Exceptions
+
+``` {.haskell file=src/Milkshake/Error.hs}
+{-# LANGUAGE NoImplicitPrelude #-}
+module Milkshake.Error (MilkshakeError(..)) where
+
+import RIO
+
+data MilkshakeError
+    = ConfigError Text
+    deriving (Show, Eq)
+
+instance Exception MilkshakeError
+```
+
+
 ## First Layer
 We start at the first level. This is where we get a list of things that need to be done and their implied dependencies.
 
@@ -416,26 +432,50 @@ module Milkshake.Run where
 
 import RIO
 import qualified RIO.Text as T
+import qualified RIO.Map as M
+
+import Development.Shake (shake, shakeOptions)
 import qualified Development.Shake as Shake
 import Milkshake.Data
+import Milkshake.Error
 
 targetPath :: Target -> Maybe FilePath
 targetPath (File path) = Just $ T.unpack path
 targetPath _ = Nothing
 
 enter :: Action -> Shake.Rules ()
-enter Action{ target = [File path], .. } =
-    (T.unpack path) Shake.%> \_ -> do
-        Shake.need $ mapMaybe targetPath dependency
-        mapM_ runScript script
-enter Action { target = [Phony n], .. }
-    | n == "main" = Shake.want $ mapMaybe targetPath dependency
-    | otherwise   = mempty
+<<enter-action>>
 enter _ = mempty
 
 runScript :: Text -> Shake.Action ()
 runScript = mapM_ (Shake.cmd_ Shake.Shell) . lines . T.unpack
 ```
+
+#### Enter actions into Shake
+Actions that have a single file target:
+
+``` {.haskell #enter-action}
+enter Action{ target = [File path], .. } =
+    (T.unpack path) Shake.%> \_ -> do
+        Shake.need $ mapMaybe targetPath dependency
+        mapM_ runScript script
+```
+
+The `main` target:
+
+``` {.haskell #enter-action}
+enter Action { target = [Phony n], .. }
+    | n == "main" = Shake.want $ mapMaybe targetPath dependency
+    <<enter-phony>>
+    | otherwise   = mempty
+```
+
+``` {.haskell #enter-phony}
+-- add phony targets
+```
+
+#### Run in tmp
+For testing, we need to run commands in a temporary environment
 
 ``` {.haskell file=test/Util.hs}
 {-# LANGUAGE NoImplicitPrelude,DuplicateRecordFields,OverloadedLabels #-}
@@ -468,7 +508,7 @@ import Milkshake.Data (Action(..), Target(..))
 import Milkshake.Run (enter)
 import Dhall (auto, input)
 
-import Development.Shake (shake, shakeOptions, ShakeOptions(..), Verbosity(..))
+import Development.Shake (shake, shakeOptions)
 import Util (runInTmp)
 
 spec :: Spec
@@ -479,8 +519,7 @@ spec = do
             actionList `shouldSatisfy` any (\a -> target (a :: Action) == [ Phony "main" ])
         it "can run a list of actions" $ runInTmp ["./test/Layer1/*"] $ do
             actionList <- input auto "./test1.dhall" :: IO [Action]
-            shake (shakeOptions {shakeVerbosity = Diagnostic})
-                (mapM_ enter actionList)
+            shake shakeOptions (mapM_ enter actionList)
             result <- readFileUtf8 "out.txt"
             result `shouldBe` "Hello, World!\n"
     describe "Virtual Targets" $ do
@@ -565,7 +604,8 @@ let Stmt : Type =
     < Action  : Action
     | Rule    : Rule
     | Trigger : Trigger
-    | Include : Target >
+    | Include : Text
+    | Main    : List Text >
 
 let action = \(tgt : List Target) -> \(dep : List Target) -> \(script : Optional Text) ->
     Stmt.Action { target = tgt, dependency = dep, script = script }
@@ -573,8 +613,8 @@ let rule = \(name : Text) -> \(gen : Generator) ->
     Stmt.Rule { name = name, gen = gen }
 let trigger = \(name : Text) -> \(tgt : List Target) -> \(dep : List Target) ->
     Stmt.Trigger { name = name, target = tgt, dependency = dep }
-let include = \(filename : Text) ->
-    Stmt.Include (Target.File filename)
+let include = Stmt.Include
+let main = Stmt.Main
 ```
 
 We've reached the limits of GHC's `OverloadedLabels` extension to deal with this sum type, so we write an explicit decoder.
@@ -584,14 +624,16 @@ data Stmt
     = StmtAction Action
     | StmtRule Rule
     | StmtTrigger Trigger
-    | StmtInclude Target
+    | StmtInclude FilePath
+    | StmtMain [FilePath]
 
 stmt :: Decoder Stmt
 stmt = union (
        (StmtAction  <$> constructor "Action" auto)
     <> (StmtRule    <$> constructor "Rule" auto)
     <> (StmtTrigger <$> constructor "Trigger" auto)
-    <> (StmtInclude <$> constructor "Include" auto))
+    <> (StmtInclude <$> constructor "Include" auto)
+    <> (StmtMain    <$> constructor "Main" auto))
 
 readStmts :: (MonadIO m) => FilePath -> m [Stmt]
 readStmts path = liftIO $ input (list stmt) (T.pack path)
@@ -658,7 +700,8 @@ let Map/Entry = Prelude.Map.Entry
 <<milkshake-convenience>>
 
 in  { Stmt = Stmt
-    , Target = Target, action = action, rule = rule, trigger = trigger, include = include
+    , Target = Target, action = action, rule = rule, trigger = trigger
+    , include = include, main = main
     , fileName = fileName
     , getFiles = getFiles
     , fileRule = fileRule
@@ -704,7 +747,8 @@ data Config = Config
     { rules :: M.Map Text Generator
     , triggers :: [Trigger]
     , actions :: [Action]
-    , includes :: [Target] }
+    , includes :: [FilePath]
+    , main     :: [FilePath] }
     deriving (Generic)
     deriving Semigroup via GenericSemigroup Config
     deriving Monoid    via GenericMonoid Config
@@ -715,6 +759,7 @@ stmtsToConfig = foldMap toConfig
           toConfig (StmtRule (Rule {..}))   = mempty { rules = M.singleton name gen }
           toConfig (StmtTrigger t) = mempty { triggers = [t] }
           toConfig (StmtInclude i) = mempty { includes = [i] }
+          toConfig (StmtMain m) = mempty { main = m }
 ```
 
 ``` {.haskell file=test/Layer2Spec.hs}
@@ -724,27 +769,12 @@ module Layer2Spec (spec) where
 import RIO
 -- import qualified RIO.Text as T
 import Test.Hspec
-import qualified RIO.Map as M
 
-import Milkshake.Data
-    ( Trigger(..), Action(..), Target(..)
-    , readStmts, Config(..), stmtsToConfig)
-import Milkshake.Run (enter)
+import Milkshake.Data (Action(..), Target(..), readStmts, Config(..), stmtsToConfig)
+import Milkshake.Run (enter, fromTrigger)
 
-import Development.Shake (shake, shakeOptions, ShakeOptions(..), Verbosity(..))
+import Development.Shake (shake, shakeOptions)
 import Util (runInTmp)
-
-fromTrigger :: Config -> Trigger -> Either Text Action
-fromTrigger cfg Trigger{..} = case rule of
-    Just r  -> Right $ Action target dependency (r target dependency)
-    Nothing -> Left $ "No such rule: " <> name
-    where rule = (rules cfg) M.!? name
-
-data MilkShakeError
-    = ConfigError Text
-    deriving (Show, Eq)
-
-instance Exception MilkShakeError
 
 spec :: Spec
 spec = describe "Layer2" $ do
@@ -755,10 +785,10 @@ spec = describe "Layer2" $ do
         cfg <- stmtsToConfig <$> readStmts "./test2.dhall"
         (actions cfg) `shouldSatisfy` any (\Action{..} -> target == [Phony "main"])
         case mapM (fromTrigger cfg) (triggers cfg) of
-            Left e -> throwM (ConfigError e)
+            Left e -> throwM e
             Right as -> do
                 let actionList = (actions cfg) <> as
-                shake (shakeOptions { shakeVerbosity = Diagnostic }) (mapM_ enter actionList)
+                shake shakeOptions (mapM_ enter actionList)
                 result <- readFileUtf8 "out.txt"
                 result `shouldBe` "Hello, World!\n"
 ```
@@ -800,7 +830,7 @@ in  [ ms.fileAction "include.dhall" ([] : List Text)
         dhall <<< "./template.dhall 42" > include.dhall
         ''
     , ms.include "include.dhall"
-    , ms.mainAction ["answer.txt"]
+    , ms.main ["answer.txt"]
     ]
 ```
 
@@ -812,40 +842,45 @@ module Layer3Spec (spec) where
 
 import RIO
 import Test.Hspec
-import qualified RIO.Map as M
 
-import Milkshake.Data
-    ( Trigger(..), Action(..), Target(..)
-    , readStmts, Config(..), stmtsToConfig)
-import Milkshake.Run (enter)
+import Milkshake.Data (readStmts, Config(..), stmtsToConfig)
+import Milkshake.Run (enter, loadIncludes, immediateActions)
 
-import Development.Shake (shake, shakeOptions, ShakeOptions(..), Verbosity(..))
+import Development.Shake (shake, shakeOptions, want)
 import Util (runInTmp)
-
-fromTrigger :: Config -> Trigger -> Either Text Action
-fromTrigger cfg Trigger{..} = case rule of
-    Just r  -> Right $ Action target dependency (r target dependency)
-    Nothing -> Left $ "No such rule: " <> name
-    where rule = (rules cfg) M.!? name
-
-data MilkShakeError
-    = ConfigError Text
-    deriving (Show, Eq)
-
-instance Exception MilkShakeError
 
 spec :: Spec
 spec = describe "Layer3" $ do
     it "can load a configuration" $ runInTmp ["./test/Layer3/*"] $ do
         cfg <- stmtsToConfig <$> readStmts "./test1.dhall"
-        (actions cfg) `shouldSatisfy` any (\Action{..} -> target == [Phony "main"])
-    -- it "can run all actions" $ runInTmp ["./test/Layer1/hello.c", "./test/Layer2/*"] $ do
-    --     cfg <- stmtsToConfig <$> readStmts "./test1.dhall"
-    --     case mapM (fromTrigger cfg) (triggers cfg) of
-    --         Left e -> throwM (ConfigError e)
-    --         Right as -> do
-    --             let actionList = (actions cfg) <> as
-    --             shake (shakeOptions { shakeVerbosity = Diagnostic }) (mapM_ enter actionList)
-    --             result <- readFileUtf8 "out.txt"
-    --             result `shouldBe` "Hello, World!\n"
+        (main cfg) `shouldSatisfy` (not . null)
+        gen <- stmtsToConfig <$> readStmts "./template.dhall 42"
+        (actions gen) `shouldSatisfy` (not . null)
+    it "can run all actions" $ runInTmp ["./test/Layer3/*"] $ do
+        cfg <- loadIncludes =<< stmtsToConfig <$> readStmts "./test1.dhall"
+        actions <- either throwM return $ immediateActions cfg
+        shake shakeOptions (mapM_ enter actions >> want (main cfg))
+        result <- readFileUtf8 "answer.txt"
+        result `shouldBe` "42\n"
+```
+
+``` {.haskell file=src/Milkshake/Run.hs}
+fromTrigger :: Config -> Trigger -> Either MilkshakeError Action
+fromTrigger cfg Trigger{..} = case rule of
+    Just r  -> Right $ Action target dependency (r target dependency)
+    Nothing -> Left $ ConfigError $ "No such rule: " <> name
+    where rule = (rules cfg) M.!? name
+
+immediateActions :: Config -> Either MilkshakeError [Action]
+immediateActions cfg@Config{..} = do
+    triggered <- mapM (fromTrigger cfg) triggers
+    return $ actions <> triggered
+
+loadIncludes :: (MonadThrow m, MonadIO m) => Config -> m Config
+loadIncludes cfg@Config{includes=[]} = return cfg
+loadIncludes cfg@Config{includes} = do
+    actions <- either throwM return $ immediateActions cfg
+    liftIO $ shake shakeOptions (mapM_ enter actions >> Shake.want includes)
+    stmts <- foldMapM readStmts (map ("./" <>) includes)
+    loadIncludes $ cfg {includes = mempty} <> stmtsToConfig stmts
 ```

@@ -52,7 +52,8 @@ let Stmt : Type =
     < Action  : Action
     | Rule    : Rule
     | Trigger : Trigger
-    | Include : Target >
+    | Include : Text
+    | Main    : List Text >
 
 let action = \(tgt : List Target) -> \(dep : List Target) -> \(script : Optional Text) ->
     Stmt.Action { target = tgt, dependency = dep, script = script }
@@ -60,8 +61,8 @@ let rule = \(name : Text) -> \(gen : Generator) ->
     Stmt.Rule { name = name, gen = gen }
 let trigger = \(name : Text) -> \(tgt : List Target) -> \(dep : List Target) ->
     Stmt.Trigger { name = name, target = tgt, dependency = dep }
-let include = \(filename : Text) ->
-    Stmt.Include (Target.File filename)
+let include = Stmt.Include
+let main = Stmt.Main
 -- ~\~ end
 -- ~\~ begin <<lit/index.md|milkshake-convenience>>[0]
 let fileName = \(a : Target) ->
@@ -100,7 +101,8 @@ let mainAction = \(deps : List Text) ->
 -- ~\~ end
 
 in  { Stmt = Stmt
-    , Target = Target, action = action, rule = rule, trigger = trigger, include = include
+    , Target = Target, action = action, rule = rule, trigger = trigger
+    , include = include, main = main
     , fileName = fileName
     , getFiles = getFiles
     , fileRule = fileRule
