@@ -1,0 +1,5 @@
+packages: milkshake.cabal
+tests: True
+
+package milkshake
+    Ghc-Options: -Wcompat
