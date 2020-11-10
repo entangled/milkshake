@@ -1,6 +1,6 @@
 -- ~\~ language=Haskell filename=src/Milkshake/Run.hs
 -- ~\~ begin <<lit/index.md|src/Milkshake/Run.hs>>[0]
-{-# LANGUAGE NoImplicitPrelude,DuplicateRecordFields,OverloadedLabels #-}
+{-# LANGUAGE DuplicateRecordFields,OverloadedLabels #-}
 module Milkshake.Run where
 
 import RIO

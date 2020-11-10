@@ -1,6 +1,6 @@
 -- ~\~ language=Haskell filename=src/Milkshake/Data.hs
 -- ~\~ begin <<lit/index.md|src/Milkshake/Data.hs>>[0]
-{-# LANGUAGE NoImplicitPrelude,DuplicateRecordFields,OverloadedLabels #-}
+{-# LANGUAGE DuplicateRecordFields,OverloadedLabels #-}
 {-# LANGUAGE DerivingStrategies,DerivingVia,DataKinds,UndecidableInstances #-}
 
 module Milkshake.Data where

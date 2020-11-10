@@ -238,7 +238,6 @@ spec = do
 ## Exceptions
 
 ``` {.haskell file=src/Milkshake/Error.hs}
-{-# LANGUAGE NoImplicitPrelude #-}
 module Milkshake.Error (MilkshakeError(..)) where
 
 import RIO
@@ -411,7 +410,7 @@ in
 ### Loading the script
 
 ``` {.haskell file=src/Milkshake/Data.hs}
-{-# LANGUAGE NoImplicitPrelude,DuplicateRecordFields,OverloadedLabels #-}
+{-# LANGUAGE DuplicateRecordFields,OverloadedLabels #-}
 {-# LANGUAGE DerivingStrategies,DerivingVia,DataKinds,UndecidableInstances #-}
 
 module Milkshake.Data where
@@ -427,7 +426,7 @@ import Dhall
 ```
 
 ``` {.haskell file=src/Milkshake/Run.hs}
-{-# LANGUAGE NoImplicitPrelude,DuplicateRecordFields,OverloadedLabels #-}
+{-# LANGUAGE DuplicateRecordFields,OverloadedLabels #-}
 module Milkshake.Run where
 
 import RIO
@@ -883,4 +882,80 @@ loadIncludes cfg@Config{includes} = do
     liftIO $ shake shakeOptions (mapM_ enter actions >> Shake.want includes)
     stmts <- foldMapM readStmts (map ("./" <>) includes)
     loadIncludes $ cfg {includes = mempty} <> stmtsToConfig stmts
+```
+
+# File event loop
+
+``` {.haskell file=src/Milkshake/Monitor.hs}
+module Milkshake.Monitor
+    ( monitor, GlobList, FileEventHandler, Watch, StopListening
+    , withWatchManager, Event(..), eventPath ) where
+
+import RIO
+import RIO.List (nub)
+import RIO.FilePath (takeDirectory)
+import RIO.Directory (canonicalizePath)
+import qualified RIO.Text as T
+
+import System.FilePath.Glob (glob)
+import System.FSNotify (withManager, WatchManager, Event(..), watchDir, eventPath)
+
+type GlobList = [Text]
+type FileEventHandler m event = Event -> m event
+type Watch m event = (GlobList, FileEventHandler m event)
+type StopListening m = m ()
+
+withWatchManager :: MonadUnliftIO m => (WatchManager -> m a) -> m a
+withWatchManager callback = do
+    withRunInIO $ (\run -> liftIO $ withManager (run . callback))
+
+globCanon :: MonadIO m => [Text] -> m [FilePath]
+globCanon globs = liftIO $ search >>= canonicalize
+    where search = mconcat <$> mapM (glob . T.unpack) globs
+          canonicalize = mapM canonicalizePath
+
+setWatch :: MonadUnliftIO m => WatchManager -> Chan event 
+                            -> Watch m event -> m (StopListening m)
+setWatch wm chan (globs, handler) = do
+    fileList <- globCanon globs
+    let dirList = nub $ map takeDirectory fileList
+    stopActions <- withRunInIO $ (\run ->
+        liftIO $ mapM
+            (\dir -> watchDir wm dir (const True)
+                (\ev -> run $ handler ev >>= writeChan chan)) dirList)
+    return $ liftIO $ sequence_ stopActions
+
+monitor :: MonadUnliftIO m => WatchManager -> Chan event 
+                           -> [Watch m event] -> m (StopListening m)
+monitor wm chan watches = do
+    stopActions <- mapM (setWatch wm chan) watches
+    return $ sequence_ stopActions
+```
+
+``` {.haskell file=test/Milkshake/MonitorSpec.hs}
+module Milkshake.MonitorSpec (spec) where
+
+import RIO
+import RIO.File (writeBinaryFile)
+
+import Test.Hspec
+import Util (runInTmp)
+
+import Milkshake.Monitor
+
+data MyEvent = Ping deriving (Show, Eq)
+
+ping :: MonadIO m => Event -> m MyEvent
+ping = const $ return Ping
+
+spec :: Spec
+spec = describe "Monitor" $ do
+    it "monitors file creation" $ runInTmp [] $ withWatchManager (\wm -> do
+        chan <- newChan
+        writeBinaryFile "test.txt" mempty
+        stop <- monitor wm chan [(["./*"], ping)]
+        writeBinaryFile "test.txt" mempty
+        signal <- readChan chan
+        signal `shouldBe` Ping
+        stop)
 ```
