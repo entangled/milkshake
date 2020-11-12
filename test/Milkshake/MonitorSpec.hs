@@ -3,10 +3,11 @@
 module Milkshake.MonitorSpec (spec) where
 
 import RIO
+import RIO.Directory (canonicalizePath)
 import RIO.File (writeBinaryFile)
 
 import Test.Hspec
-import Util (runInTmp)
+import Util (runInTmp, runWithLogger)
 
 import Milkshake.Monitor
 
@@ -17,12 +18,16 @@ ping = const $ return Ping
 
 spec :: Spec
 spec = describe "Monitor" $ do
-    it "monitors file creation" $ runInTmp [] $ withWatchManager (\wm -> do
-        chan <- newChan
-        writeBinaryFile "test.txt" mempty
-        stop <- monitor wm chan [(["./*"], ping)]
-        writeBinaryFile "test.txt" mempty
-        signal <- readChan chan
-        signal `shouldBe` Ping
-        stop)
+    it "monitors file creation" $ runInTmp [] $ do
+        signal <- runWithLogger $ withWatchManager (\wm -> do
+                chan <- newChan
+                stop <- monitor wm chan [(["./*"], return)]
+                writeBinaryFile "test.txt" mempty
+                signal <- timeout 1000 $ readChan chan
+                stop
+                return signal)
+        abs_filename <- canonicalizePath "./test.txt"
+        signal `shouldSatisfy` \case
+            Just (Added path _ _) -> path == abs_filename
+            _ -> False
 -- ~\~ end

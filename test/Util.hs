@@ -1,7 +1,7 @@
 -- ~\~ language=Haskell filename=test/Util.hs
 -- ~\~ begin <<lit/index.md|test/Util.hs>>[0]
 {-# LANGUAGE NoImplicitPrelude,DuplicateRecordFields,OverloadedLabels #-}
-module Util (runInTmp) where
+module Util (runInTmp, runWithLogger) where
 
 import RIO
 import RIO.Directory (getCurrentDirectory, setCurrentDirectory, copyFile)
@@ -17,4 +17,9 @@ runInTmp cpy action = do
         setCurrentDirectory tmp
         action
         setCurrentDirectory cwd
+
+runWithLogger :: MonadUnliftIO m => RIO LogFunc a -> m a
+runWithLogger action = do
+    logOptions <- logOptionsHandle stderr True
+    withLogFunc logOptions (\logFunc -> runRIO logFunc action)
 -- ~\~ end

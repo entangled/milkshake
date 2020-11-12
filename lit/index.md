@@ -478,7 +478,7 @@ For testing, we need to run commands in a temporary environment
 
 ``` {.haskell file=test/Util.hs}
 {-# LANGUAGE NoImplicitPrelude,DuplicateRecordFields,OverloadedLabels #-}
-module Util (runInTmp) where
+module Util (runInTmp, runWithLogger) where
 
 import RIO
 import RIO.Directory (getCurrentDirectory, setCurrentDirectory, copyFile)
@@ -494,6 +494,11 @@ runInTmp cpy action = do
         setCurrentDirectory tmp
         action
         setCurrentDirectory cwd
+
+runWithLogger :: MonadUnliftIO m => RIO LogFunc a -> m a
+runWithLogger action = do
+    logOptions <- logOptionsHandle stderr True
+    withLogFunc logOptions (\logFunc -> runRIO logFunc action)
 ```
 
 ``` {.haskell file=test/Layer1Spec.hs}
@@ -894,7 +899,7 @@ module Milkshake.Monitor
 import RIO
 import RIO.List (nub)
 import RIO.FilePath (takeDirectory)
-import RIO.Directory (canonicalizePath)
+import RIO.Directory (canonicalizePath, doesDirectoryExist)
 import qualified RIO.Text as T
 
 import System.FilePath.Glob (glob)
@@ -911,22 +916,28 @@ withWatchManager callback = do
 
 globCanon :: MonadIO m => [Text] -> m [FilePath]
 globCanon globs = liftIO $ search >>= canonicalize
-    where search = mconcat <$> mapM (glob . T.unpack) globs
+    where search = do
+            files <- mconcat <$> mapM (glob . T.unpack) globs
+            parents <- mconcat <$> mapM (glob . takeDirectory . T.unpack) globs
+            dirs <- filterM doesDirectoryExist parents
+            return $ nub $ dirs <> map takeDirectory files
           canonicalize = mapM canonicalizePath
 
-setWatch :: MonadUnliftIO m => WatchManager -> Chan event 
-                            -> Watch m event -> m (StopListening m)
+setWatch :: (MonadUnliftIO m, MonadReader env m, HasLogFunc env)
+         => WatchManager -> Chan event 
+         -> Watch m event -> m (StopListening m)
 setWatch wm chan (globs, handler) = do
-    fileList <- globCanon globs
-    let dirList = nub $ map takeDirectory fileList
+    dirList <- globCanon globs
+    logDebug $ display $ "watching: " <> tshow dirList
     stopActions <- withRunInIO $ (\run ->
         liftIO $ mapM
             (\dir -> watchDir wm dir (const True)
                 (\ev -> run $ handler ev >>= writeChan chan)) dirList)
     return $ liftIO $ sequence_ stopActions
 
-monitor :: MonadUnliftIO m => WatchManager -> Chan event 
-                           -> [Watch m event] -> m (StopListening m)
+monitor :: (MonadUnliftIO m, MonadReader env m, HasLogFunc env)
+        => WatchManager -> Chan event 
+        -> [Watch m event] -> m (StopListening m)
 monitor wm chan watches = do
     stopActions <- mapM (setWatch wm chan) watches
     return $ sequence_ stopActions
@@ -936,10 +947,11 @@ monitor wm chan watches = do
 module Milkshake.MonitorSpec (spec) where
 
 import RIO
+import RIO.Directory (canonicalizePath)
 import RIO.File (writeBinaryFile)
 
 import Test.Hspec
-import Util (runInTmp)
+import Util (runInTmp, runWithLogger)
 
 import Milkshake.Monitor
 
@@ -950,12 +962,16 @@ ping = const $ return Ping
 
 spec :: Spec
 spec = describe "Monitor" $ do
-    it "monitors file creation" $ runInTmp [] $ withWatchManager (\wm -> do
-        chan <- newChan
-        writeBinaryFile "test.txt" mempty
-        stop <- monitor wm chan [(["./*"], ping)]
-        writeBinaryFile "test.txt" mempty
-        signal <- readChan chan
-        signal `shouldBe` Ping
-        stop)
+    it "monitors file creation" $ runInTmp [] $ do
+        signal <- runWithLogger $ withWatchManager (\wm -> do
+                chan <- newChan
+                stop <- monitor wm chan [(["./*"], return)]
+                writeBinaryFile "test.txt" mempty
+                signal <- timeout 1000 $ readChan chan
+                stop
+                return signal)
+        abs_filename <- canonicalizePath "./test.txt"
+        signal `shouldSatisfy` \case
+            Just (Added path _ _) -> path == abs_filename
+            _ -> False
 ```

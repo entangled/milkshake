@@ -7,7 +7,7 @@ module Milkshake.Monitor
 import RIO
 import RIO.List (nub)
 import RIO.FilePath (takeDirectory)
-import RIO.Directory (canonicalizePath)
+import RIO.Directory (canonicalizePath, doesDirectoryExist)
 import qualified RIO.Text as T
 
 import System.FilePath.Glob (glob)
@@ -24,22 +24,28 @@ withWatchManager callback = do
 
 globCanon :: MonadIO m => [Text] -> m [FilePath]
 globCanon globs = liftIO $ search >>= canonicalize
-    where search = mconcat <$> mapM (glob . T.unpack) globs
+    where search = do
+            files <- mconcat <$> mapM (glob . T.unpack) globs
+            parents <- mconcat <$> mapM (glob . takeDirectory . T.unpack) globs
+            dirs <- filterM doesDirectoryExist parents
+            return $ nub $ dirs <> map takeDirectory files
           canonicalize = mapM canonicalizePath
 
-setWatch :: MonadUnliftIO m => WatchManager -> Chan event 
-                            -> Watch m event -> m (StopListening m)
+setWatch :: (MonadUnliftIO m, MonadReader env m, HasLogFunc env)
+         => WatchManager -> Chan event 
+         -> Watch m event -> m (StopListening m)
 setWatch wm chan (globs, handler) = do
-    fileList <- globCanon globs
-    let dirList = nub $ map takeDirectory fileList
+    dirList <- globCanon globs
+    logDebug $ display $ "watching: " <> tshow dirList
     stopActions <- withRunInIO $ (\run ->
         liftIO $ mapM
             (\dir -> watchDir wm dir (const True)
                 (\ev -> run $ handler ev >>= writeChan chan)) dirList)
     return $ liftIO $ sequence_ stopActions
 
-monitor :: MonadUnliftIO m => WatchManager -> Chan event 
-                           -> [Watch m event] -> m (StopListening m)
+monitor :: (MonadUnliftIO m, MonadReader env m, HasLogFunc env)
+        => WatchManager -> Chan event 
+        -> [Watch m event] -> m (StopListening m)
 monitor wm chan watches = do
     stopActions <- mapM (setWatch wm chan) watches
     return $ sequence_ stopActions
