@@ -11,11 +11,6 @@ import Util (runInTmp, runWithLogger)
 
 import Milkshake.Monitor
 
-data MyEvent = Ping deriving (Show, Eq)
-
-ping :: MonadIO m => Event -> m MyEvent
-ping = const $ return Ping
-
 spec :: Spec
 spec = describe "Monitor" $ do
     it "monitors file creation" $ runInTmp [] $ do
@@ -29,5 +24,5 @@ spec = describe "Monitor" $ do
         abs_filename <- canonicalizePath "./test.txt"
         signal `shouldSatisfy` \case
             Just (Added path _ _) -> path == abs_filename
-            _ -> False
+            _                     -> False
 -- ~\~ end

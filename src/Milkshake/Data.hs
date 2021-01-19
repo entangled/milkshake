@@ -60,6 +60,7 @@ data Trigger = Trigger
 instance FromDhall Trigger
 -- ~\~ end
 -- ~\~ begin <<lit/index.md|haskell-types>>[4]
+{-| The 'Stmt' type encodes lines in a Milkshake configuration. -}
 data Stmt
     = StmtAction Action
     | StmtRule Rule
@@ -67,6 +68,11 @@ data Stmt
     | StmtInclude FilePath
     | StmtMain [FilePath]
 
+{-| To decode a list of Milkshake statements from the Dhall configuration
+    use this decoder.
+
+  >>> input (list stmt) "(entangled.dhall).milkshake"
+  -}
 stmt :: Decoder Stmt
 stmt = union (
        (StmtAction  <$> constructor "Action" auto)
@@ -89,6 +95,7 @@ data Config = Config
     deriving Semigroup via GenericSemigroup Config
     deriving Monoid    via GenericMonoid Config
 
+{-| Groups a list of 'Stmt' into a 'Config' record. -}
 stmtsToConfig :: [Stmt] -> Config
 stmtsToConfig = foldMap toConfig
     where toConfig (StmtAction a) = mempty { actions = [a] }

@@ -18,6 +18,7 @@ type FileEventHandler m event = Event -> m event
 type Watch m event = (GlobList, FileEventHandler m event)
 type StopListening m = m ()
 
+{-| Unlifted version of 'System.FSNotify.withManager'. -}
 withWatchManager :: MonadUnliftIO m => (WatchManager -> m a) -> m a
 withWatchManager callback = do
     withRunInIO $ (\run -> liftIO $ withManager (run . callback))
@@ -43,6 +44,14 @@ setWatch wm chan (globs, handler) = do
                 (\ev -> run $ handler ev >>= writeChan chan)) dirList)
     return $ liftIO $ sequence_ stopActions
 
+{-| Starts a number of watches, where each watch is specified by a list of
+    glob-patterns and a handler that converts 'Event' to a message. Generated
+    events are pushed to the given channel. Returns an IO action that will stop
+    all of these watches.
+    
+    The glob-pattern is expanded such that all directories containing matching
+    files are watched. In addition we also watch these directories if they're
+    empty, so that we trigger on file creation events. -}
 monitor :: (MonadUnliftIO m, MonadReader env m, HasLogFunc env)
         => WatchManager -> Chan event 
         -> [Watch m event] -> m (StopListening m)

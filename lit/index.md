@@ -624,6 +624,7 @@ let main = Stmt.Main
 We've reached the limits of GHC's `OverloadedLabels` extension to deal with this sum type, so we write an explicit decoder.
 
 ``` {.haskell #haskell-types}
+{-| The 'Stmt' type encodes lines in a Milkshake configuration. -}
 data Stmt
     = StmtAction Action
     | StmtRule Rule
@@ -631,6 +632,11 @@ data Stmt
     | StmtInclude FilePath
     | StmtMain [FilePath]
 
+{-| To decode a list of Milkshake statements from the Dhall configuration
+    use this decoder.
+
+  >>> input (list stmt) "(entangled.dhall).milkshake"
+  -}
 stmt :: Decoder Stmt
 stmt = union (
        (StmtAction  <$> constructor "Action" auto)
@@ -757,6 +763,7 @@ data Config = Config
     deriving Semigroup via GenericSemigroup Config
     deriving Monoid    via GenericMonoid Config
 
+{-| Groups a list of 'Stmt' into a 'Config' record. -}
 stmtsToConfig :: [Stmt] -> Config
 stmtsToConfig = foldMap toConfig
     where toConfig (StmtAction a) = mempty { actions = [a] }
@@ -890,6 +897,7 @@ loadIncludes cfg@Config{includes} = do
 ```
 
 # File event loop
+We want to be informed about file system events.
 
 ``` {.haskell file=src/Milkshake/Monitor.hs}
 module Milkshake.Monitor
@@ -910,6 +918,7 @@ type FileEventHandler m event = Event -> m event
 type Watch m event = (GlobList, FileEventHandler m event)
 type StopListening m = m ()
 
+{-| Unlifted version of 'System.FSNotify.withManager'. -}
 withWatchManager :: MonadUnliftIO m => (WatchManager -> m a) -> m a
 withWatchManager callback = do
     withRunInIO $ (\run -> liftIO $ withManager (run . callback))
@@ -935,6 +944,14 @@ setWatch wm chan (globs, handler) = do
                 (\ev -> run $ handler ev >>= writeChan chan)) dirList)
     return $ liftIO $ sequence_ stopActions
 
+{-| Starts a number of watches, where each watch is specified by a list of
+    glob-patterns and a handler that converts 'Event' to a message. Generated
+    events are pushed to the given channel. Returns an IO action that will stop
+    all of these watches.
+    
+    The glob-pattern is expanded such that all directories containing matching
+    files are watched. In addition we also watch these directories if they're
+    empty, so that we trigger on file creation events. -}
 monitor :: (MonadUnliftIO m, MonadReader env m, HasLogFunc env)
         => WatchManager -> Chan event 
         -> [Watch m event] -> m (StopListening m)
@@ -955,11 +972,6 @@ import Util (runInTmp, runWithLogger)
 
 import Milkshake.Monitor
 
-data MyEvent = Ping deriving (Show, Eq)
-
-ping :: MonadIO m => Event -> m MyEvent
-ping = const $ return Ping
-
 spec :: Spec
 spec = describe "Monitor" $ do
     it "monitors file creation" $ runInTmp [] $ do
@@ -973,5 +985,8 @@ spec = describe "Monitor" $ do
         abs_filename <- canonicalizePath "./test.txt"
         signal `shouldSatisfy` \case
             Just (Added path _ _) -> path == abs_filename
-            _ -> False
+            _                     -> False
 ```
+
+# Entangled main loop
+
