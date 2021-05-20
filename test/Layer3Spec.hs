@@ -16,13 +16,13 @@ spec :: Spec
 spec = describe "Layer3" $ do
     it "can load a configuration" $ runInTmp ["./test/Layer3/*"] $ do
         cfg <- stmtsToConfig <$> readStmts "./test1.dhall"
-        (main cfg) `shouldSatisfy` (not . null)
+        mainTarget cfg `shouldSatisfy` (not . null)
         gen <- stmtsToConfig <$> readStmts "./template.dhall 42"
-        (actions gen) `shouldSatisfy` (not . null)
+        actions gen `shouldSatisfy` (not . null)
     it "can run all actions" $ runInTmp ["./test/Layer3/*"] $ do
-        cfg <- loadIncludes =<< stmtsToConfig <$> readStmts "./test1.dhall"
+        cfg <- loadIncludes . stmtsToConfig =<< readStmts "./test1.dhall"
         actions <- either throwM return $ immediateActions cfg
-        shake shakeOptions (mapM_ enter actions >> want (main cfg))
+        shake shakeOptions (mapM_ enter actions >> want (mainTarget cfg))
         result <- readFileUtf8 "answer.txt"
         result `shouldBe` "42\n"
 -- ~\~ end

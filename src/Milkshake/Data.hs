@@ -67,6 +67,9 @@ data Stmt
     | StmtTrigger Trigger
     | StmtInclude FilePath
     | StmtMain [FilePath]
+    -- ~\~ begin <<lit/index.md|stmt-type>>[0]
+    | StmtWatch Watch
+    -- ~\~ end
 
 {-| To decode a list of Milkshake statements from the Dhall configuration
     use this decoder.
@@ -79,18 +82,23 @@ stmt = union (
     <> (StmtRule    <$> constructor "Rule" auto)
     <> (StmtTrigger <$> constructor "Trigger" auto)
     <> (StmtInclude <$> constructor "Include" auto)
-    <> (StmtMain    <$> constructor "Main" auto))
+    <> (StmtMain    <$> constructor "Main" auto)
+    -- ~\~ begin <<lit/index.md|stmt-decoder>>[0]
+    <> (StmtWatch   <$> constructor "Watch" auto)
+    -- ~\~ end
+    )
 
 readStmts :: (MonadIO m) => FilePath -> m [Stmt]
 readStmts path = liftIO $ input (list stmt) (T.pack path)
 -- ~\~ end
 -- ~\~ begin <<lit/index.md|haskell-types>>[5]
 data Config = Config
-    { rules :: M.Map Text Generator
-    , triggers :: [Trigger]
-    , actions :: [Action]
-    , includes :: [FilePath]
-    , main     :: [FilePath] }
+    { rules      :: M.Map Text Generator
+    , triggers   :: [Trigger]
+    , actions    :: [Action]
+    , includes   :: [FilePath]
+    , mainTarget :: [FilePath]
+    , watches    :: [Watch] }
     deriving (Generic)
     deriving Semigroup via GenericSemigroup Config
     deriving Monoid    via GenericMonoid Config
@@ -99,9 +107,21 @@ data Config = Config
 stmtsToConfig :: [Stmt] -> Config
 stmtsToConfig = foldMap toConfig
     where toConfig (StmtAction a) = mempty { actions = [a] }
-          toConfig (StmtRule (Rule {..}))   = mempty { rules = M.singleton name gen }
+          toConfig (StmtRule Rule {..})   = mempty { rules = M.singleton name gen }
           toConfig (StmtTrigger t) = mempty { triggers = [t] }
           toConfig (StmtInclude i) = mempty { includes = [i] }
-          toConfig (StmtMain m) = mempty { main = m }
+          toConfig (StmtMain m) = mempty { mainTarget = m }
+          toConfig (StmtWatch w) = mempty { watches = [w] }
+
+readConfig :: (MonadIO m) => FilePath -> m Config
+readConfig f = stmtsToConfig <$> readStmts f
+-- ~\~ end
+-- ~\~ begin <<lit/index.md|haskell-types>>[6]
+data Watch = Watch
+    { paths :: [FilePath]
+    , target :: Target
+    } deriving (Generic)
+
+instance FromDhall Watch
 -- ~\~ end
 -- ~\~ end

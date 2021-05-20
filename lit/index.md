@@ -455,7 +455,7 @@ Actions that have a single file target:
 
 ``` {.haskell #enter-action}
 enter Action{ target = [File path], .. } =
-    (T.unpack path) Shake.%> \_ -> do
+    T.unpack path Shake.%> \_ -> do
         Shake.need $ mapMaybe targetPath dependency
         mapM_ runScript script
 ```
@@ -604,11 +604,17 @@ instance FromDhall Trigger
 The choice is between a hierarchical notation, where actions and rules are separated, or to join them in a sum type, so that we can read a list of statements. I chose the latter to make it easier to have an include statement, and also that things are a bit more flexible. We expose the `Stmt` type only through a series of factory functions, making refactoring very easy.
 
 ``` {.dhall #milkshake-stmt}
+let Watch : Type =
+    { paths : List Text
+    , target : Target
+    }
+
 let Stmt : Type =
     < Action  : Action
     | Rule    : Rule
     | Trigger : Trigger
     | Include : Text
+    | Watch   : Watch
     | Main    : List Text >
 
 let action = \(tgt : List Target) -> \(dep : List Target) -> \(script : Optional Text) ->
@@ -631,6 +637,7 @@ data Stmt
     | StmtTrigger Trigger
     | StmtInclude FilePath
     | StmtMain [FilePath]
+    <<stmt-type>>
 
 {-| To decode a list of Milkshake statements from the Dhall configuration
     use this decoder.
@@ -643,7 +650,9 @@ stmt = union (
     <> (StmtRule    <$> constructor "Rule" auto)
     <> (StmtTrigger <$> constructor "Trigger" auto)
     <> (StmtInclude <$> constructor "Include" auto)
-    <> (StmtMain    <$> constructor "Main" auto))
+    <> (StmtMain    <$> constructor "Main" auto)
+    <<stmt-decoder>>
+    )
 
 readStmts :: (MonadIO m) => FilePath -> m [Stmt]
 readStmts path = liftIO $ input (list stmt) (T.pack path)
@@ -754,11 +763,12 @@ in  [ ms.fileRule "compile" (\(tgt : Text) -> \(deps : List Text) ->
 
 ``` {.haskell #haskell-types}
 data Config = Config
-    { rules :: M.Map Text Generator
-    , triggers :: [Trigger]
-    , actions :: [Action]
-    , includes :: [FilePath]
-    , main     :: [FilePath] }
+    { rules      :: M.Map Text Generator
+    , triggers   :: [Trigger]
+    , actions    :: [Action]
+    , includes   :: [FilePath]
+    , mainTarget :: [FilePath]
+    , watches    :: [Watch] }
     deriving (Generic)
     deriving Semigroup via GenericSemigroup Config
     deriving Monoid    via GenericMonoid Config
@@ -767,10 +777,14 @@ data Config = Config
 stmtsToConfig :: [Stmt] -> Config
 stmtsToConfig = foldMap toConfig
     where toConfig (StmtAction a) = mempty { actions = [a] }
-          toConfig (StmtRule (Rule {..}))   = mempty { rules = M.singleton name gen }
+          toConfig (StmtRule Rule {..})   = mempty { rules = M.singleton name gen }
           toConfig (StmtTrigger t) = mempty { triggers = [t] }
           toConfig (StmtInclude i) = mempty { includes = [i] }
-          toConfig (StmtMain m) = mempty { main = m }
+          toConfig (StmtMain m) = mempty { mainTarget = m }
+          toConfig (StmtWatch w) = mempty { watches = [w] }
+
+readConfig :: (MonadIO m) => FilePath -> m Config
+readConfig f = stmtsToConfig <$> readStmts f
 ```
 
 ``` {.haskell file=test/Layer2Spec.hs}
@@ -864,13 +878,13 @@ spec :: Spec
 spec = describe "Layer3" $ do
     it "can load a configuration" $ runInTmp ["./test/Layer3/*"] $ do
         cfg <- stmtsToConfig <$> readStmts "./test1.dhall"
-        (main cfg) `shouldSatisfy` (not . null)
+        mainTarget cfg `shouldSatisfy` (not . null)
         gen <- stmtsToConfig <$> readStmts "./template.dhall 42"
-        (actions gen) `shouldSatisfy` (not . null)
+        actions gen `shouldSatisfy` (not . null)
     it "can run all actions" $ runInTmp ["./test/Layer3/*"] $ do
-        cfg <- loadIncludes =<< stmtsToConfig <$> readStmts "./test1.dhall"
+        cfg <- loadIncludes . stmtsToConfig =<< readStmts "./test1.dhall"
         actions <- either throwM return $ immediateActions cfg
-        shake shakeOptions (mapM_ enter actions >> want (main cfg))
+        shake shakeOptions (mapM_ enter actions >> want (mainTarget cfg))
         result <- readFileUtf8 "answer.txt"
         result `shouldBe` "42\n"
 ```
@@ -880,7 +894,7 @@ fromTrigger :: Config -> Trigger -> Either MilkshakeError Action
 fromTrigger cfg Trigger{..} = case rule of
     Just r  -> Right $ Action target dependency (r target dependency)
     Nothing -> Left $ ConfigError $ "No such rule: " <> name
-    where rule = (rules cfg) M.!? name
+    where rule = rules cfg M.!? name
 
 immediateActions :: Config -> Either MilkshakeError [Action]
 immediateActions cfg@Config{..} = do
@@ -900,9 +914,11 @@ loadIncludes cfg@Config{includes} = do
 We want to be informed about file system events.
 
 ``` {.haskell file=src/Milkshake/Monitor.hs}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Milkshake.Monitor
     ( monitor, GlobList, FileEventHandler, Watch, StopListening
-    , withWatchManager, Event(..), eventPath ) where
+    , withWatchManager, Event(..), eventPath
+    , WatchManager, HasWatchManager(..), HasEventChannel(..) ) where
 
 import RIO
 import RIO.List (nub)
@@ -918,10 +934,16 @@ type FileEventHandler m event = Event -> m event
 type Watch m event = (GlobList, FileEventHandler m event)
 type StopListening m = m ()
 
+class HasWatchManager env where
+    watchManager :: Lens' env WatchManager
+
+class HasEventChannel env event where
+    eventChannel :: Lens' env (Chan event)
+
 {-| Unlifted version of 'System.FSNotify.withManager'. -}
 withWatchManager :: MonadUnliftIO m => (WatchManager -> m a) -> m a
 withWatchManager callback = do
-    withRunInIO $ (\run -> liftIO $ withManager (run . callback))
+    withRunInIO (\run -> liftIO $ withManager (run . callback))
 
 globCanon :: MonadIO m => [Text] -> m [FilePath]
 globCanon globs = liftIO $ search >>= canonicalize
@@ -938,7 +960,7 @@ setWatch :: (MonadUnliftIO m, MonadReader env m, HasLogFunc env)
 setWatch wm chan (globs, handler) = do
     dirList <- globCanon globs
     logDebug $ display $ "watching: " <> tshow dirList
-    stopActions <- withRunInIO $ (\run ->
+    stopActions <- withRunInIO (\run ->
         liftIO $ mapM
             (\dir -> watchDir wm dir (const True)
                 (\ev -> run $ handler ev >>= writeChan chan)) dirList)
@@ -948,19 +970,22 @@ setWatch wm chan (globs, handler) = do
     glob-patterns and a handler that converts 'Event' to a message. Generated
     events are pushed to the given channel. Returns an IO action that will stop
     all of these watches.
-    
+
     The glob-pattern is expanded such that all directories containing matching
     files are watched. In addition we also watch these directories if they're
     empty, so that we trigger on file creation events. -}
-monitor :: (MonadUnliftIO m, MonadReader env m, HasLogFunc env)
-        => WatchManager -> Chan event 
-        -> [Watch m event] -> m (StopListening m)
-monitor wm chan watches = do
-    stopActions <- mapM (setWatch wm chan) watches
+monitor :: ( MonadUnliftIO m, MonadReader env m, HasLogFunc env
+           , HasWatchManager env, HasEventChannel env event )
+        => [Watch m event] -> m (StopListening m)
+monitor watches = do
+    wm <- view watchManager
+    ch <- view eventChannel
+    stopActions <- mapM (setWatch wm ch) watches
     return $ sequence_ stopActions
 ```
 
 ``` {.haskell file=test/Milkshake/MonitorSpec.hs}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Milkshake.MonitorSpec (spec) where
 
 import RIO
@@ -968,25 +993,170 @@ import RIO.Directory (canonicalizePath)
 import RIO.File (writeBinaryFile)
 
 import Test.Hspec
-import Util (runInTmp, runWithLogger)
+import Util (runInTmp)
 
 import Milkshake.Monitor
+
+data Env = Env
+    { _watchManager :: WatchManager
+    , _channel      :: Chan Event
+    , _logger       :: LogFunc
+    }
+
+instance HasWatchManager Env where
+    watchManager = lens _watchManager (\e m -> e { _watchManager = m })
+
+instance HasLogFunc Env where
+    logFuncL = lens _logger (\e l -> e { _logger = l })
+
+instance HasEventChannel Env Event where
+    eventChannel = lens _channel (\e c -> e { _channel = c })
+
+runEnv :: MonadUnliftIO m => RIO Env a -> m a
+runEnv action = do
+    logOptions <- logOptionsHandle stderr True
+    withLogFunc logOptions (\logFunc -> do
+        withWatchManager (\wm -> do
+            ch <- newChan
+            let env = Env wm ch logFunc
+            runRIO env action))
 
 spec :: Spec
 spec = describe "Monitor" $ do
     it "monitors file creation" $ runInTmp [] $ do
-        signal <- runWithLogger $ withWatchManager (\wm -> do
-                chan <- newChan
-                stop <- monitor wm chan [(["./*"], return)]
+        signal <- runEnv $ do
+                chan <- view eventChannel
+                stop <- monitor [(["./*"], return)]
                 writeBinaryFile "test.txt" mempty
                 signal <- timeout 1000 $ readChan chan
                 stop
-                return signal)
+                return signal
         abs_filename <- canonicalizePath "./test.txt"
         signal `shouldSatisfy` \case
             Just (Added path _ _) -> path == abs_filename
             _                     -> False
 ```
 
+# Adding watches
+
+``` {.haskell #haskell-types}
+data Watch = Watch
+    { paths :: [FilePath]
+    , target :: Target
+    } deriving (Generic)
+
+instance FromDhall Watch
+```
+
+``` {.haskell #stmt-type}
+| StmtWatch Watch
+```
+
+``` {.haskell #stmt-decoder}
+<> (StmtWatch   <$> constructor "Watch" auto)
+```
+
+``` {.dhall file=test/Layer4/schema.dhall}
+let Prelude = https://prelude.dhall-lang.org/v19.0.0/package.dhall
+    sha256:eb693342eb769f782174157eba9b5924cf8ac6793897fc36a31ccbd6f56dafe2
+let List/map = Prelude.List.map
+let Text/concatSep = Prelude.Text.concatSep
+let Map/Type = Prelude.Map.Type
+let Map/Entry = Prelude.Map.Entry
+-- let List/map = https://prelude.dhall-lang.org/v11.1.0/List/map
+--     sha256:dd845ffb4568d40327f2a817eb42d1c6138b929ca758d50bc33112ef3c885680
+-- let List/unpackOptionals = https://prelude.dhall-lang.org/v11.1.0/List/unpackOptionals
+--     sha256:0cbaa920f429cf7fc3907f8a9143203fe948883913560e6e1043223e6b3d05e4
+
+<<milkshake-target>>
+<<milkshake-action>>
+<<milkshake-trigger>>
+<<milkshake-rule>>
+<<milkshake-stmt>>
+<<milkshake-convenience>>
+
+in  { Stmt = Stmt
+    , Target = Target, action = action, rule = rule, trigger = trigger
+    , include = include, main = main
+    , fileName = fileName
+    , getFiles = getFiles
+    , fileRule = fileRule
+    , fileAction = fileAction
+    , mainAction = mainAction
+    }
+```
+
 # Entangled main loop
+
+``` {.haskell file=src/Milkshake.hs}
+module Milkshake ( Config(..)
+                 , readConfig
+                 , loadIncludes
+                 , WatchManager
+                 , Event
+                 , monitor
+                 , HasWatchManager(..)
+                 , HasEventChannel(..)
+                 , withWatchManager
+                 ) where
+
+import Milkshake.Data ( readConfig, Config(..) )
+import Milkshake.Run ( enter, loadIncludes, immediateActions )
+import Milkshake.Monitor ( WatchManager, Event, monitor, HasWatchManager(..), HasEventChannel(..), withWatchManager )
+
+import Development.Shake (shake, shakeOptions, want)
+```
+
+``` {.haskell file=app/Main.hs}
+module Main where
+
+import RIO
+import Options.Applicative
+import Milkshake
+
+data Args = Args
+    { inputFile :: FilePath }
+
+argParser :: ParserInfo Args
+argParser = info (args <**> helper)
+              ( fullDesc
+             <> progDesc "Build stuff on file system events."
+             <> header "milkshake - file system event loops" )
+    where args = Args <$> argument str (metavar "FILE" <> help "Input file")
+
+data Env = Env
+    { _watchManager :: WatchManager
+    , _channel      :: Chan Event
+    , _logger       :: LogFunc
+    }
+
+instance HasWatchManager Env where
+    watchManager = lens _watchManager (\e m -> e { _watchManager = m })
+
+instance HasLogFunc Env where
+    logFuncL = lens _logger (\e l -> e { _logger = l })
+
+instance HasEventChannel Env Event where
+    eventChannel = lens _channel (\e c -> e { _channel = c })
+
+runEnv :: MonadUnliftIO m => RIO Env a -> m a
+runEnv x = do
+    logOptions <- logOptionsHandle stderr True
+    withLogFunc logOptions (\logFunc -> do
+        withWatchManager (\wm -> do
+            ch <- newChan
+            let env = Env wm ch logFunc
+            runRIO env x))
+
+mainLoop :: FilePath -> RIO Env ()
+mainLoop path = do
+    cfg <- readConfig path
+    return ()
+
+main :: IO ()
+main = do
+    path <- inputFile <$> execParser argParser
+    runEnv $ mainLoop path
+```
+
 

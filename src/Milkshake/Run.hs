@@ -19,7 +19,7 @@ targetPath _ = Nothing
 enter :: Action -> Shake.Rules ()
 -- ~\~ begin <<lit/index.md|enter-action>>[0]
 enter Action{ target = [File path], .. } =
-    (T.unpack path) Shake.%> \_ -> do
+    T.unpack path Shake.%> \_ -> do
         Shake.need $ mapMaybe targetPath dependency
         mapM_ runScript script
 -- ~\~ end
@@ -41,7 +41,7 @@ fromTrigger :: Config -> Trigger -> Either MilkshakeError Action
 fromTrigger cfg Trigger{..} = case rule of
     Just r  -> Right $ Action target dependency (r target dependency)
     Nothing -> Left $ ConfigError $ "No such rule: " <> name
-    where rule = (rules cfg) M.!? name
+    where rule = rules cfg M.!? name
 
 immediateActions :: Config -> Either MilkshakeError [Action]
 immediateActions cfg@Config{..} = do

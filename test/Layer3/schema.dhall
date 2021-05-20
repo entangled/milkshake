@@ -48,11 +48,17 @@ let Rule : Type =
     }
 -- ~\~ end
 -- ~\~ begin <<lit/index.md|milkshake-stmt>>[0]
+let Watch : Type =
+    { paths : List Text
+    , target : Target
+    }
+
 let Stmt : Type =
     < Action  : Action
     | Rule    : Rule
     | Trigger : Trigger
     | Include : Text
+    | Watch   : Watch
     | Main    : List Text >
 
 let action = \(tgt : List Target) -> \(dep : List Target) -> \(script : Optional Text) ->
