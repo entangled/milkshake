@@ -1,6 +1,9 @@
 -- ~\~ language=Haskell filename=src/Milkshake/Monitor.hs
 -- ~\~ begin <<lit/index.md|src/Milkshake/Monitor.hs>>[0]
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-|
+This module contains functionality that involves the interface with FSNotify.
+ -}
 module Milkshake.Monitor
     ( monitor, GlobList, FileEventHandler, Watch, StopListening
     , withWatchManager, Event(..), eventPath

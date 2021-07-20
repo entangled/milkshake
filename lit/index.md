@@ -242,7 +242,7 @@ module Milkshake.Error (MilkshakeError(..)) where
 
 import RIO
 
-data MilkshakeError
+newtype MilkshakeError
     = ConfigError Text
     deriving (Show, Eq)
 
@@ -303,11 +303,12 @@ let Action : Type =
 ```
 
 ``` {.haskell #haskell-types}
+{-| An `Action` is a node in our workflow. -}
 data Action = Action
     { target :: [ Target ]
     , dependency :: [ Target ]
-    , script :: Maybe Text }
-    deriving (Generic, Show)
+    , script :: Maybe Text
+    } deriving (Generic, Show)
 
 instance FromDhall Action
 ```
@@ -420,13 +421,16 @@ import qualified RIO.Text as T
 import qualified RIO.Map as M
 
 import Data.Monoid.Generic (GenericSemigroup(..), GenericMonoid(..))
-import Dhall
+import Dhall (FromDhall, ToDhall, Decoder, union, constructor, auto, input, list)
 
 <<haskell-types>>
 ```
 
 ``` {.haskell file=src/Milkshake/Run.hs}
 {-# LANGUAGE DuplicateRecordFields,OverloadedLabels #-}
+{-|
+Contains functions to execute the workflows using Shake.
+ -}
 module Milkshake.Run where
 
 import RIO
@@ -547,10 +551,12 @@ let Rule : Type =
 ``` {.haskell #haskell-types}
 type Generator = [Target] -> [Target] -> Maybe Text
 
+{-| A `Rule` is a parametric `Action`. Given a list of targets and dependencies,
+    the generator creates the corresponding script. -}
 data Rule = Rule
-    { name :: Text
-    , gen :: Generator }
-    deriving (Generic)
+    { name :: Text                  -- ^ a unique name for this rule
+    , gen :: Generator              -- ^ the generator function for the script
+    } deriving (Generic)
 
 instance FromDhall Rule
 ```
@@ -591,11 +597,13 @@ let Trigger : Type =
 ```
 
 ``` {.haskell #haskell-types}
+{-| The `Trigger` is like a function call, where the `Rule` is the function
+    and `target` and `dependecy` are the arguments. -}
 data Trigger = Trigger
-    { name :: Text
-    , target :: [ Target ]
-    , dependency :: [ Target ] }
-    deriving (Generic, Show)
+    { name :: Text                  -- ^ the name of the rule to trigger
+    , target :: [ Target ]          -- ^ the targets
+    , dependency :: [ Target ]      -- ^ the dependencies
+    } deriving (Generic, Show)
 
 instance FromDhall Trigger
 ```
@@ -632,7 +640,7 @@ We've reached the limits of GHC's `OverloadedLabels` extension to deal with this
 ``` {.haskell #haskell-types}
 {-| The 'Stmt' type encodes lines in a Milkshake configuration. -}
 data Stmt
-    = StmtAction Action
+    = StmtAction Action         {-^ -}
     | StmtRule Rule
     | StmtTrigger Trigger
     | StmtInclude FilePath
@@ -762,6 +770,7 @@ in  [ ms.fileRule "compile" (\(tgt : Text) -> \(deps : List Text) ->
 ```
 
 ``` {.haskell #haskell-types}
+{-| Transposed data record of a list of `Stmt`. -}
 data Config = Config
     { rules      :: M.Map Text Generator
     , triggers   :: [Trigger]
@@ -915,6 +924,9 @@ We want to be informed about file system events.
 
 ``` {.haskell file=src/Milkshake/Monitor.hs}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-|
+This module contains functionality that involves the interface with FSNotify.
+ -}
 module Milkshake.Monitor
     ( monitor, GlobList, FileEventHandler, Watch, StopListening
     , withWatchManager, Event(..), eventPath
@@ -1041,7 +1053,7 @@ spec = describe "Monitor" $ do
 
 ``` {.haskell #haskell-types}
 data Watch = Watch
-    { paths :: [FilePath]
+    { paths :: [Text]
     , target :: Target
     } deriving (Generic)
 
@@ -1089,6 +1101,17 @@ in  { Stmt = Stmt
 # Entangled main loop
 
 ``` {.haskell file=src/Milkshake.hs}
+{-|
+Module     : Milkshake
+Copyright  : (c) Netherlands eScience Center, 2021
+                 Johan Hidding, 2021
+License    : Apache-2
+Maintainer : j.hidding@esciencenter.nl
+Stability  : experimental
+
+Experimental prototype: combine Dhall, Shake and FSNotify to create a
+generic build system that triggers on filesystem events.
+ -}
 module Milkshake ( Config(..)
                  , readConfig
                  , loadIncludes
@@ -1098,6 +1121,11 @@ module Milkshake ( Config(..)
                  , HasWatchManager(..)
                  , HasEventChannel(..)
                  , withWatchManager
+                 , shake
+                 , shakeOptions
+                 , want
+                 , enter
+                 , immediateActions
                  ) where
 
 import Milkshake.Data ( readConfig, Config(..) )
@@ -1111,8 +1139,13 @@ import Development.Shake (shake, shakeOptions, want)
 module Main where
 
 import RIO
+import qualified RIO.Text as T
 import Options.Applicative
 import Milkshake
+    ( readConfig, loadIncludes, immediateActions, shake, shakeOptions, monitor, withWatchManager, want, enter
+    , HasWatchManager, HasEventChannel(..), Config )
+import qualified Milkshake as MS
+import qualified Milkshake.Data as MS.Data
 
 data Args = Args
     { inputFile :: FilePath }
@@ -1125,8 +1158,8 @@ argParser = info (args <**> helper)
     where args = Args <$> argument str (metavar "FILE" <> help "Input file")
 
 data Env = Env
-    { _watchManager :: WatchManager
-    , _channel      :: Chan Event
+    { _watchManager :: MS.WatchManager
+    , _channel      :: Chan MS.Data.Target
     , _logger       :: LogFunc
     }
 
@@ -1136,7 +1169,7 @@ instance HasWatchManager Env where
 instance HasLogFunc Env where
     logFuncL = lens _logger (\e l -> e { _logger = l })
 
-instance HasEventChannel Env Event where
+instance HasEventChannel Env MS.Data.Target where
     eventChannel = lens _channel (\e c -> e { _channel = c })
 
 runEnv :: MonadUnliftIO m => RIO Env a -> m a
@@ -1148,10 +1181,22 @@ runEnv x = do
             let env = Env wm ch logFunc
             runRIO env x))
 
+runAction :: Config -> [FilePath] -> RIO Env ()
+runAction cfg tgts = do
+    actions <- either throwM return $ immediateActions cfg
+    liftIO $ shake shakeOptions (mapM_ enter actions >> want tgts)
+
 mainLoop :: FilePath -> RIO Env ()
 mainLoop path = do
-    cfg <- readConfig path
-    return ()
+    cfg <- loadIncludes =<< readConfig path
+    chan <- view eventChannel
+    stop <- monitor $ map (\MS.Data.Watch{..} -> (paths, \_ -> return target)) (MS.Data.watches cfg)
+    target <- readChan chan
+    stop
+    case target of
+        (MS.Data.File path) -> runAction cfg [T.unpack path]
+        _           -> return ()
+    mainLoop path
 
 main :: IO ()
 main = do

@@ -4,7 +4,7 @@ module Milkshake.Error (MilkshakeError(..)) where
 
 import RIO
 
-data MilkshakeError
+newtype MilkshakeError
     = ConfigError Text
     deriving (Show, Eq)
 

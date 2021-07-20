@@ -10,7 +10,7 @@ import qualified RIO.Text as T
 import qualified RIO.Map as M
 
 import Data.Monoid.Generic (GenericSemigroup(..), GenericMonoid(..))
-import Dhall
+import Dhall (FromDhall, ToDhall, Decoder, union, constructor, auto, input, list)
 
 -- ~\~ begin <<lit/index.md|haskell-types>>[0]
 data Virtual = Virtual
@@ -32,37 +32,42 @@ instance FromDhall Target
 instance ToDhall Target
 -- ~\~ end
 -- ~\~ begin <<lit/index.md|haskell-types>>[1]
+{-| An `Action` is a node in our workflow. -}
 data Action = Action
     { target :: [ Target ]
     , dependency :: [ Target ]
-    , script :: Maybe Text }
-    deriving (Generic, Show)
+    , script :: Maybe Text
+    } deriving (Generic, Show)
 
 instance FromDhall Action
 -- ~\~ end
 -- ~\~ begin <<lit/index.md|haskell-types>>[2]
 type Generator = [Target] -> [Target] -> Maybe Text
 
+{-| A `Rule` is a parametric `Action`. Given a list of targets and dependencies,
+    the generator creates the corresponding script. -}
 data Rule = Rule
-    { name :: Text
-    , gen :: Generator }
-    deriving (Generic)
+    { name :: Text                  -- ^ a unique name for this rule
+    , gen :: Generator              -- ^ the generator function for the script
+    } deriving (Generic)
 
 instance FromDhall Rule
 -- ~\~ end
 -- ~\~ begin <<lit/index.md|haskell-types>>[3]
+{-| The `Trigger` is like a function call, where the `Rule` is the function
+    and `target` and `dependecy` are the arguments. -}
 data Trigger = Trigger
-    { name :: Text
-    , target :: [ Target ]
-    , dependency :: [ Target ] }
-    deriving (Generic, Show)
+    { name :: Text                  -- ^ the name of the rule to trigger
+    , target :: [ Target ]          -- ^ the targets
+    , dependency :: [ Target ]      -- ^ the dependencies
+    } deriving (Generic, Show)
 
 instance FromDhall Trigger
 -- ~\~ end
 -- ~\~ begin <<lit/index.md|haskell-types>>[4]
 {-| The 'Stmt' type encodes lines in a Milkshake configuration. -}
 data Stmt
-    = StmtAction Action
+    = StmtAction Action         {-^ -}
     | StmtRule Rule
     | StmtTrigger Trigger
     | StmtInclude FilePath
@@ -92,6 +97,7 @@ readStmts :: (MonadIO m) => FilePath -> m [Stmt]
 readStmts path = liftIO $ input (list stmt) (T.pack path)
 -- ~\~ end
 -- ~\~ begin <<lit/index.md|haskell-types>>[5]
+{-| Transposed data record of a list of `Stmt`. -}
 data Config = Config
     { rules      :: M.Map Text Generator
     , triggers   :: [Trigger]
@@ -118,7 +124,7 @@ readConfig f = stmtsToConfig <$> readStmts f
 -- ~\~ end
 -- ~\~ begin <<lit/index.md|haskell-types>>[6]
 data Watch = Watch
-    { paths :: [FilePath]
+    { paths :: [Text]
     , target :: Target
     } deriving (Generic)
 
