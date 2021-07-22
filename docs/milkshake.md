@@ -1,10 +1,4 @@
----
-title: Milkshake
-subtitle: A filesystem triggered build system
-author: Johan Hidding
----
-
-# Build systems
+# Milkshake
 A normal build system is mostly file-system based. Every task is designated a target file and a list of dependencies. When a file somewhere down the line is updated, you rerun `make` and only the affected part of the dependency tree is updated, as shown in Figure {@fig:dependency-graph}.
 
 ``` {.dot #dependency-graph .shake}
@@ -931,7 +925,7 @@ loadIncludes cfg@Config{includes} = do
     loadIncludes $ cfg {includes = mempty} <> stmtsToConfig stmts
 ```
 
-# File event loop
+## File event loop
 We want to be informed about file system events.
 
 ``` {.haskell file=src/Milkshake/Monitor.hs}
@@ -1061,7 +1055,7 @@ spec = describe "Monitor" $ do
             _                     -> False
 ```
 
-# Adding watches
+## Adding watches
 
 ``` {.haskell #haskell-types}
 data Watch = Watch
@@ -1110,7 +1104,7 @@ in  { Stmt = Stmt
     }
 ```
 
-# Entangled main loop
+## Entangled main loop
 
 ``` {.haskell file=src/Milkshake.hs}
 {-|

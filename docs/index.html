@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Document</title>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+  <meta name="description" content="Description">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;700&family=Nunito:wght@700&display=swap" rel="stylesheet"> 
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/docsify@4/lib/themes/vue.css">
+  <link href="https://cdn.jsdelivr.net/npm/prism-themes@1.8.0/themes/prism-material-dark.min.css" rel="stylesheet" />
+  <style>
+    main {
+      font-family: 'Assistant', sans-serif;
+      font-size: 16pt;
+      color: black;
+    }
+    main .sidebar ul li a {
+      font-size: 14pt;
+      color: black;
+    }
+    body p, ul {
+      line-height: 1.6 !important;
+    }
+    h1, h2, h3 {
+      font-family: 'Nunito', sans-serif;
+      font-weight: 700;
+      color: black;
+    }
+    h1 .anchor span, h2 .anchor span, h3 .anchor span {
+      color: black;
+    }
+    .markdown-section pre {
+      background: #222;
+      border-radius: 10pt;
+    }
+    .markdown-section code {
+      color: #380339;
+    }
+    .markdown-section pre > code {
+      background: #222;
+      color: #ccc;
+      /* color: #ccc;
+      background: #380339; */
+    }
+    .markdown-section pre::after {
+      font-size: 14pt;
+    }
+    code {
+      font-size: 14pt !important;
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script>
+    window.$docsify = {
+      name: 'Milkshake',
+      repo: 'https://github.com/entangled/milkshake',
+      loadSidebar: true,
+      subMaxLevel: 2,
+      themeColor: '#009DDD',
+      markdown: {
+        renderer: {
+          // Overwrite code renderer to support entangled info string format
+          // https://github.com/docsifyjs/docsify/blob/master/src/core/render/compiler/code.js
+          code: function(code, lang = '') {
+            const info = lang;
+            if (lang.startsWith('{')) {
+              // for example '{.cpp file=src/newtonraphson.hpp}' to 'cpp'
+              lang = info.replace('{','').replace('}','').split(' ').find((d) => d.startsWith('.')).replace('.','');
+            }
+            const langOrMarkup = Prism.languages[lang] || Prism.languages.markup;
+            const text = Prism.highlight(
+              code.replace(/@DOCSIFY_QM@/g, '`'),
+              langOrMarkup
+            );
+
+            return `<pre v-pre data-lang="${info}"><code class="lang-${lang}">${text}</code></pre>`;
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Docsify v4 -->
+  <script src="//cdn.jsdelivr.net/npm/docsify@4"></script>
+  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-bash.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-haskell.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-dhall.min.js"></script>
+</body>
+</html>
