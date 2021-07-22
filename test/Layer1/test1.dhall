@@ -1,5 +1,5 @@
 -- ~\~ language=Dhall filename=test/Layer1/test1.dhall
--- ~\~ begin <<lit/index.md|test/Layer1/test1.dhall>>[0]
+-- ~\~ begin <<lit/milkshake.md|test/Layer1/test1.dhall>>[0]
 let ms = ./schema.dhall
 
 in [ ms.file "hello" [ "hello.c" ]

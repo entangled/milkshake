@@ -1,5 +1,5 @@
 -- ~\~ language=Haskell filename=src/Milkshake/Data.hs
--- ~\~ begin <<lit/index.md|src/Milkshake/Data.hs>>[0]
+-- ~\~ begin <<lit/milkshake.md|src/Milkshake/Data.hs>>[0]
 {-# LANGUAGE DuplicateRecordFields,OverloadedLabels #-}
 {-# LANGUAGE DerivingStrategies,DerivingVia,DataKinds,UndecidableInstances #-}
 
@@ -12,7 +12,7 @@ import qualified RIO.Map as M
 import Data.Monoid.Generic (GenericSemigroup(..), GenericMonoid(..))
 import Dhall (FromDhall, ToDhall, Decoder, union, constructor, auto, input, list)
 
--- ~\~ begin <<lit/index.md|haskell-types>>[0]
+-- ~\~ begin <<lit/milkshake.md|haskell-types>>[0]
 data Virtual = Virtual
     { name :: Text
     , exists :: Text
@@ -31,7 +31,7 @@ data Target
 instance FromDhall Target
 instance ToDhall Target
 -- ~\~ end
--- ~\~ begin <<lit/index.md|haskell-types>>[1]
+-- ~\~ begin <<lit/milkshake.md|haskell-types>>[1]
 {-| An `Action` is a node in our workflow. -}
 data Action = Action
     { target :: [ Target ]
@@ -41,7 +41,7 @@ data Action = Action
 
 instance FromDhall Action
 -- ~\~ end
--- ~\~ begin <<lit/index.md|haskell-types>>[2]
+-- ~\~ begin <<lit/milkshake.md|haskell-types>>[2]
 type Generator = [Target] -> [Target] -> Maybe Text
 
 {-| A `Rule` is a parametric `Action`. Given a list of targets and dependencies,
@@ -53,7 +53,7 @@ data Rule = Rule
 
 instance FromDhall Rule
 -- ~\~ end
--- ~\~ begin <<lit/index.md|haskell-types>>[3]
+-- ~\~ begin <<lit/milkshake.md|haskell-types>>[3]
 {-| The `Trigger` is like a function call, where the `Rule` is the function
     and `target` and `dependecy` are the arguments. -}
 data Trigger = Trigger
@@ -64,7 +64,7 @@ data Trigger = Trigger
 
 instance FromDhall Trigger
 -- ~\~ end
--- ~\~ begin <<lit/index.md|haskell-types>>[4]
+-- ~\~ begin <<lit/milkshake.md|haskell-types>>[4]
 {-| The 'Stmt' type encodes lines in a Milkshake configuration. -}
 data Stmt
     = StmtAction Action         {-^ -}
@@ -72,7 +72,7 @@ data Stmt
     | StmtTrigger Trigger
     | StmtInclude FilePath
     | StmtMain [FilePath]
-    -- ~\~ begin <<lit/index.md|stmt-type>>[0]
+    -- ~\~ begin <<lit/milkshake.md|stmt-type>>[0]
     | StmtWatch Watch
     -- ~\~ end
 
@@ -88,7 +88,7 @@ stmt = union (
     <> (StmtTrigger <$> constructor "Trigger" auto)
     <> (StmtInclude <$> constructor "Include" auto)
     <> (StmtMain    <$> constructor "Main" auto)
-    -- ~\~ begin <<lit/index.md|stmt-decoder>>[0]
+    -- ~\~ begin <<lit/milkshake.md|stmt-decoder>>[0]
     <> (StmtWatch   <$> constructor "Watch" auto)
     -- ~\~ end
     )
@@ -96,7 +96,7 @@ stmt = union (
 readStmts :: (MonadIO m) => FilePath -> m [Stmt]
 readStmts path = liftIO $ input (list stmt) (T.pack path)
 -- ~\~ end
--- ~\~ begin <<lit/index.md|haskell-types>>[5]
+-- ~\~ begin <<lit/milkshake.md|haskell-types>>[5]
 {-| Transposed data record of a list of `Stmt`. -}
 data Config = Config
     { rules      :: M.Map Text Generator
@@ -122,7 +122,7 @@ stmtsToConfig = foldMap toConfig
 readConfig :: (MonadIO m) => FilePath -> m Config
 readConfig f = stmtsToConfig <$> readStmts f
 -- ~\~ end
--- ~\~ begin <<lit/index.md|haskell-types>>[6]
+-- ~\~ begin <<lit/milkshake.md|haskell-types>>[6]
 data Watch = Watch
     { paths :: [Text]
     , target :: Target

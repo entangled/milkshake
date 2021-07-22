@@ -1,5 +1,5 @@
 /* ~\~ language=C filename=test/Layer1/hello.c */
-/* ~\~ begin <<lit/index.md|test/Layer1/hello.c>>[0] */
+/* ~\~ begin <<lit/milkshake.md|test/Layer1/hello.c>>[0] */
 #include <stdio.h>
 #include <stdlib.h>
 

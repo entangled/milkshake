@@ -1,5 +1,5 @@
 -- ~\~ language=Haskell filename=test/HSpec.hs
--- ~\~ begin <<lit/index.md|test/HSpec.hs>>[0]
+-- ~\~ begin <<lit/milkshake.md|test/HSpec.hs>>[0]
 {-# LANGUAGE NoImplicitPrelude #-}
 module HSpec (spec) where
 

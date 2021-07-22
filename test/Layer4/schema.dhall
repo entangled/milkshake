@@ -1,5 +1,5 @@
 -- ~\~ language=Dhall filename=test/Layer4/schema.dhall
--- ~\~ begin <<lit/index.md|test/Layer4/schema.dhall>>[0]
+-- ~\~ begin <<lit/milkshake.md|test/Layer4/schema.dhall>>[0]
 let Prelude = https://prelude.dhall-lang.org/v19.0.0/package.dhall
     sha256:eb693342eb769f782174157eba9b5924cf8ac6793897fc36a31ccbd6f56dafe2
 let List/map = Prelude.List.map
@@ -11,7 +11,7 @@ let Map/Entry = Prelude.Map.Entry
 -- let List/unpackOptionals = https://prelude.dhall-lang.org/v11.1.0/List/unpackOptionals
 --     sha256:0cbaa920f429cf7fc3907f8a9143203fe948883913560e6e1043223e6b3d05e4
 
--- ~\~ begin <<lit/index.md|milkshake-target>>[0]
+-- ~\~ begin <<lit/milkshake.md|milkshake-target>>[0]
 let Virtual : Type =
     { name : Text
     , exists : Text    -- Script to check existence
@@ -24,7 +24,7 @@ let Target : Type =
     | Phony : Text
     >
 -- ~\~ end
--- ~\~ begin <<lit/index.md|milkshake-action>>[0]
+-- ~\~ begin <<lit/milkshake.md|milkshake-action>>[0]
 let Dependency = \(Tgt : Type) -> \(Dep : Type) ->
     { target : Tgt
     , dependency : Dep
@@ -34,12 +34,12 @@ let Action : Type =
     { script : Optional Text
     } //\\ (Dependency (List Target) (List Target))
 -- ~\~ end
--- ~\~ begin <<lit/index.md|milkshake-trigger>>[0]
+-- ~\~ begin <<lit/milkshake.md|milkshake-trigger>>[0]
 let Trigger : Type =
     { name : Text
     } //\\ (Dependency (List Target) (List Target))
 -- ~\~ end
--- ~\~ begin <<lit/index.md|milkshake-rule>>[0]
+-- ~\~ begin <<lit/milkshake.md|milkshake-rule>>[0]
 let Generator : Type =
     List Target -> List Target -> Optional Text
 let Rule : Type =
@@ -47,7 +47,7 @@ let Rule : Type =
     , gen : Generator
     }
 -- ~\~ end
--- ~\~ begin <<lit/index.md|milkshake-stmt>>[0]
+-- ~\~ begin <<lit/milkshake.md|milkshake-stmt>>[0]
 let Watch : Type =
     { paths : List Text
     , target : Target
@@ -70,7 +70,7 @@ let trigger = \(name : Text) -> \(tgt : List Target) -> \(dep : List Target) ->
 let include = Stmt.Include
 let main = Stmt.Main
 -- ~\~ end
--- ~\~ begin <<lit/index.md|milkshake-convenience>>[0]
+-- ~\~ begin <<lit/milkshake.md|milkshake-convenience>>[0]
 let fileName = \(a : Target) ->
     merge { File = \(x : Text) -> Some x
           , Generic = \(_ : Virtual) -> None Text
@@ -92,7 +92,7 @@ let fileRule = \(name : Text) -> \(f : Text -> List Text -> Text) ->
         merge { Some = \(inp : Text) -> Some (f inp (getFiles dep))
             , None = None Text } (List/head Text (getFiles tgt)))
 -- ~\~ end
--- ~\~ begin <<lit/index.md|milkshake-convenience>>[1]
+-- ~\~ begin <<lit/milkshake.md|milkshake-convenience>>[1]
 let fileAction = \(target : Text) -> \(deps : List Text) -> \(script : Text) ->
     Stmt.Action
         { target = [ Target.File target ]

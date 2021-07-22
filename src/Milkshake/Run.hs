@@ -1,5 +1,5 @@
 -- ~\~ language=Haskell filename=src/Milkshake/Run.hs
--- ~\~ begin <<lit/index.md|src/Milkshake/Run.hs>>[0]
+-- ~\~ begin <<lit/milkshake.md|src/Milkshake/Run.hs>>[0]
 {-# LANGUAGE DuplicateRecordFields,OverloadedLabels #-}
 {-|
 Contains functions to execute the workflows using Shake.
@@ -24,16 +24,16 @@ isFileTarget (File _) = True
 isFileTarget _        = False
 
 enter :: Action -> Shake.Rules ()
--- ~\~ begin <<lit/index.md|enter-action>>[0]
+-- ~\~ begin <<lit/milkshake.md|enter-action>>[0]
 enter Action{ target = [File path], .. } =
     T.unpack path Shake.%> \_ -> do
         Shake.need $ mapMaybe targetPath dependency
         mapM_ runScript script
 -- ~\~ end
--- ~\~ begin <<lit/index.md|enter-action>>[1]
+-- ~\~ begin <<lit/milkshake.md|enter-action>>[1]
 enter Action { target = [Phony n], .. }
     | n == "main" = Shake.want $ mapMaybe targetPath dependency
-    -- ~\~ begin <<lit/index.md|enter-phony>>[0]
+    -- ~\~ begin <<lit/milkshake.md|enter-phony>>[0]
     | otherwise   = Shake.phony (T.unpack n) $ do
         Shake.need $ mapMaybe targetPath dependency
         mapM_ runScript script
@@ -51,7 +51,7 @@ enter _ = mempty
 runScript :: Text -> Shake.Action ()
 runScript = mapM_ (Shake.cmd_ Shake.Shell) . lines . T.unpack
 -- ~\~ end
--- ~\~ begin <<lit/index.md|src/Milkshake/Run.hs>>[1]
+-- ~\~ begin <<lit/milkshake.md|src/Milkshake/Run.hs>>[1]
 fromTrigger :: Config -> Trigger -> Either MilkshakeError Action
 fromTrigger cfg Trigger{..} = case rule of
     Just r  -> Right $ Action target dependency (r target dependency)
