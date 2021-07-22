@@ -1074,7 +1074,7 @@ instance FromDhall Watch
 <> (StmtWatch   <$> constructor "Watch" auto)
 ```
 
-``` {.dhall file=test/Layer4/schema.dhall}
+``` {.dhall file=test/Layer4/schema.dhall #final-schema}
 let Prelude = https://prelude.dhall-lang.org/v19.0.0/package.dhall
     sha256:eb693342eb769f782174157eba9b5924cf8ac6793897fc36a31ccbd6f56dafe2
 let List/map = Prelude.List.map
@@ -1104,7 +1104,10 @@ in  { Stmt = Stmt
     }
 ```
 
-## Entangled main loop
+## Main loop
+
+``` {.dhall file=data/Milkshake.dhall #final-schema}
+```
 
 ``` {.haskell file=src/Milkshake.hs}
 {-|
