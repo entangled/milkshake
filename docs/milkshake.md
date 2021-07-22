@@ -704,6 +704,9 @@ let fileAction = \(target : Text) -> \(deps : List Text) -> \(script : Text) ->
         , dependency = List/map Text Target Target.File deps
         , script = Some script }
 
+let fileTrigger = \(name : Text) -> \(tgt : Text) -> \(deps : List Text) ->
+    trigger name tgt (List/map Text Target Target.File deps)
+
 let mainAction = \(deps : List Text) ->
     Stmt.Action
         { target = [ Target.Phony "main" ]
@@ -1099,7 +1102,7 @@ in  { Stmt = Stmt
     , fileName = fileName
     , getFiles = getFiles
     , fileRule = fileRule
-    , fileAction = fileAction
+    , fileAction = fileAction, fileTrigger = fileTrigger
     , mainAction = mainAction
     }
 ```
@@ -1107,6 +1110,7 @@ in  { Stmt = Stmt
 ## Main loop
 
 ``` {.dhall file=data/Milkshake.dhall #final-schema}
+
 ```
 
 ``` {.haskell file=src/Milkshake.hs}
@@ -1157,7 +1161,8 @@ import qualified Milkshake as MS
 import qualified Milkshake.Data as MS.Data
 
 data Args = Args
-    { inputFile :: FilePath }
+    { inputFile :: FilePath
+    , runOnce :: Bool }
 
 argParser :: ParserInfo Args
 argParser = info (args <**> helper)
@@ -1165,6 +1170,7 @@ argParser = info (args <**> helper)
              <> progDesc "Build stuff on file system events."
              <> header "milkshake - file system event loops" )
     where args = Args <$> argument str (metavar "FILE" <> help "Input file")
+                      <*> switch ( long "once" <> short '1' <> help "Run main target once" )
 
 data Env = Env
     { _watchManager :: MS.WatchManager
@@ -1207,10 +1213,16 @@ mainLoop path = do
         _           -> return ()
     mainLoop path
 
+runMain :: FilePath -> RIO Env ()
+runMain path = do
+    cfg <- loadIncludes =<< readConfig path
+    runAction cfg []
+
 main :: IO ()
 main = do
-    path <- inputFile <$> execParser argParser
-    runEnv $ mainLoop path
+    args <- execParser argParser
+    let path = inputFile args
+    runEnv $ if (runOnce args) then runMain path else mainLoop path 
 ```
 
 

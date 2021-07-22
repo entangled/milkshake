@@ -99,6 +99,9 @@ let fileAction = \(target : Text) -> \(deps : List Text) -> \(script : Text) ->
         , dependency = List/map Text Target Target.File deps
         , script = Some script }
 
+let fileTrigger = \(name : Text) -> \(tgt : Text) -> \(deps : List Text) ->
+    trigger name tgt (List/map Text Target Target.File deps)
+
 let mainAction = \(deps : List Text) ->
     Stmt.Action
         { target = [ Target.Phony "main" ]
