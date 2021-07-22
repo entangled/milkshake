@@ -6,20 +6,21 @@
   <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
   <meta name="description" content="Description">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;700&family=Nunito:wght@700&display=swap" rel="stylesheet"> 
-  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/docsify@4/lib/themes/vue.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;700&family=Nunito:wght@700&display=swap" rel="stylesheet"/> 
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/docsify@4/lib/themes/vue.css"/>
   <link href="https://cdn.jsdelivr.net/npm/prism-themes@1.8.0/themes/prism-material-dark.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.css"/>
   <style>
     main {
       font-family: 'Assistant', sans-serif;
       font-size: 16pt;
-      color: black;
+      /* color: black; */
     }
     main .sidebar ul li a {
       font-size: 14pt;
-      color: black;
+      /* color: black; */
     }
     body p, ul {
       line-height: 1.6 !important;
@@ -27,10 +28,10 @@
     h1, h2, h3 {
       font-family: 'Nunito', sans-serif;
       font-weight: 700;
-      color: black;
+      /* color: black; */
     }
     h1 .anchor span, h2 .anchor span, h3 .anchor span {
-      color: black;
+      /* color: black; */
     }
     .markdown-section pre {
       background: #222;
@@ -51,17 +52,37 @@
     code {
       font-size: 14pt !important;
     }
+    .mermaid svg {
+      display: block;
+      margin: auto;
+    }
   </style>
 </head>
 <body>
   <div id="app"></div>
+  <script src="//cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
   <script>
+    var mermaid_num = 0;
+    mermaid.initialize({ startOnLoad: false });
+
     window.$docsify = {
       name: 'Milkshake',
       repo: 'https://github.com/entangled/milkshake',
       loadSidebar: true,
       subMaxLevel: 2,
       themeColor: '#009DDD',
+      darkMode: {
+        dark: {
+          background: "#1c2022",
+          toggleBtnBg: "#34495e",
+          textColor: "#b4b4b4"
+        },
+        light: {
+          background: "white",
+          toggleBtnBg: "var(--theme-color)",
+          textColor: "black"
+        }
+      },
       markdown: {
         renderer: {
           // Overwrite code renderer to support entangled info string format
@@ -78,6 +99,11 @@
               langOrMarkup
             );
 
+            if (lang === "mermaid") {
+              return (
+                '<div class="mermaid">' + mermaid.render('mermaid-svg-' + mermaid_num++, code) + "</div>"
+              );
+            }
             return `<pre v-pre data-lang="${info}"><code class="lang-${lang}">${text}</code></pre>`;
           }
         }

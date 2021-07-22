@@ -1,19 +1,17 @@
 # Milkshake
-A normal build system is mostly file-system based. Every task is designated a target file and a list of dependencies. When a file somewhere down the line is updated, you rerun `make` and only the affected part of the dependency tree is updated, as shown in Figure {@fig:dependency-graph}.
+A normal build system is mostly file-system based. Every task is designated a target file and a list of dependencies. When a file somewhere down the line is updated, you rerun `make` and only the affected part of the dependency tree is updated, like so:
 
-``` {.dot #dependency-graph .shake}
-digraph G {
-    node [shape = "box", style = "rounded, filled", color = "#cccccc"]
-    a -> b;
-    b -> e;
-    c [color = "#aaccff", label = < c <br /><font point-size="8">(changed)</font> >];
-    e [color = "#aaccff"];
-    g [color = "#aaccff", label = < g <br /><font point-size="8">(target)</font> >];
-    c -> e;
-    d -> f;
-    e -> g;
-    f -> g;
-}
+``` {.mermaid}
+graph TD
+    a --> b
+    b --> e
+    c["c (changed)"] --> e
+    d --> f
+    e --> g["g (target)"]
+    f --> g
+    style c fill:#fcc
+    style e fill:#fcc
+    style g fill:#fcc
 ```
 
 This simple principle can be written down in a `Makefile`
@@ -872,7 +870,7 @@ let ms = ./schema.dhall
 
 in  [ ms.fileAction "include.dhall" ([] : List Text)
         ''
-        dhall <<< "./template.dhall 42" > include.dhall
+        echo "./template.dhall 42" | dhall > include.dhall
         ''
     , ms.include "include.dhall"
     , ms.main ["answer.txt"]

@@ -4,7 +4,7 @@ let ms = ./schema.dhall
 
 in  [ ms.fileAction "include.dhall" ([] : List Text)
         ''
-        dhall <<< "./template.dhall 42" > include.dhall
+        echo "./template.dhall 42" | dhall > include.dhall
         ''
     , ms.include "include.dhall"
     , ms.main ["answer.txt"]

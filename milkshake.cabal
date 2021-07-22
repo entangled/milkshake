@@ -22,7 +22,7 @@ maintainer:          j.hidding@esciencecenter.nl
 copyright:           Netherlands eScience Center, Johan Hidding
 category:            Development, Shake, Build
 build-type:          Simple
-extra-source-files:  CHANGELOG.md, README.md, lit/milkshake.md
+extra-source-files:  CHANGELOG.md, README.md, docs/milkshake.md
 
 common deps
   ghc-options: -Wall
