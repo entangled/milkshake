@@ -35,12 +35,12 @@ withWatchManager callback = do
     withRunInIO (\run -> liftIO $ withManager (run . callback))
 
 globCanon :: MonadIO m => [Text] -> m [FilePath]
-globCanon globs = liftIO $ search >>= canonicalize
+globCanon globs = liftIO $ nub <$> (search >>= canonicalize)
     where search = do
             files <- mconcat <$> mapM (glob . T.unpack) globs
             parents <- mconcat <$> mapM (glob . takeDirectory . T.unpack) globs
             dirs <- filterM doesDirectoryExist parents
-            return $ nub $ dirs <> map takeDirectory files
+            return $ dirs <> map takeDirectory files
           canonicalize = mapM canonicalizePath
 
 setWatch :: (MonadUnliftIO m, MonadReader env m, HasLogFunc env)

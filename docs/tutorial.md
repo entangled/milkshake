@@ -79,3 +79,11 @@ in [ ms.fileRule "rot13" (\(tgt : Text) -> \(deps : List Text) -> ''
    , ms.watch ["message.txt"] (ms.Target.File "secret.txt")
 ]
 ```
+
+Now, run:
+
+``` {.bash}
+milkshake ./wait.dhall
+```
+
+This will always keep your encoded message up-to-date!

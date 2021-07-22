@@ -60,7 +60,9 @@ mainLoop path = do
     target <- readChan chan
     stop
     case target of
-        (MS.Data.File path) -> runAction cfg [T.unpack path]
+        (MS.Data.File path) -> do
+            logDebug $ "building " <> display path
+            runAction cfg [T.unpack path]
         _           -> return ()
     mainLoop path
 
