@@ -5,7 +5,7 @@ let languages = entangled.languages #
     [ { name = "Dot", identifiers = ["dot", "graphviz"], comment = entangled.comments.hash } ]
 
 in { entangled = entangled.Config :: { database = Some ".entangled/db.sqlite"
-                                     , watchList = [ "lit/*.md" ] : List Text
+                                     , watchList = [ "docs/milkshake.md" ] : List Text
                                      , languages = languages
                                      }
    }
