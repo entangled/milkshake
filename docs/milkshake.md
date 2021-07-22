@@ -594,24 +594,24 @@ the target would be `File "script-output.txt"` and dependencies `[ Block "hello"
 }
 ```
 
-### Triggers
+### Calls
 
 ``` {.dhall #milkshake-trigger}
-let Trigger : Type =
+let Call : Type =
     { name : Text
     } //\\ (Dependency (List Target) (List Target))
 ```
 
 ``` {.haskell #haskell-types}
-{-| The `Trigger` is like a function call, where the `Rule` is the function
+{-| The `Call` is like a function call, where the `Rule` is the function
     and `target` and `dependecy` are the arguments. -}
-data Trigger = Trigger
+data Call = Call
     { name :: Text                  -- ^ the name of the rule to trigger
     , target :: [ Target ]          -- ^ the targets
     , dependency :: [ Target ]      -- ^ the dependencies
     } deriving (Generic, Show)
 
-instance FromDhall Trigger
+instance FromDhall Call
 ```
 
 ### Statements
@@ -626,7 +626,7 @@ let Watch : Type =
 let Stmt : Type =
     < Action  : Action
     | Rule    : Rule
-    | Trigger : Trigger
+    | Call : Call
     | Include : Text
     | Watch   : Watch
     | Main    : List Text >
@@ -635,10 +635,12 @@ let action = \(tgt : List Target) -> \(dep : List Target) -> \(script : Optional
     Stmt.Action { target = tgt, dependency = dep, script = script }
 let rule = \(name : Text) -> \(gen : Generator) ->
     Stmt.Rule { name = name, gen = gen }
-let trigger = \(name : Text) -> \(tgt : List Target) -> \(dep : List Target) ->
-    Stmt.Trigger { name = name, target = tgt, dependency = dep }
+let call = \(name : Text) -> \(tgt : List Target) -> \(dep : List Target) ->
+    Stmt.Call { name = name, target = tgt, dependency = dep }
 let include = Stmt.Include
 let main = Stmt.Main
+let watch = \(paths : List Text) -> \(tgt : Target) ->
+    Stmt.Watch { paths = paths, target = tgt }
 ```
 
 We've reached the limits of GHC's `OverloadedLabels` extension to deal with this sum type, so we write an explicit decoder.
@@ -648,7 +650,7 @@ We've reached the limits of GHC's `OverloadedLabels` extension to deal with this
 data Stmt
     = StmtAction Action         {-^ -}
     | StmtRule Rule
-    | StmtTrigger Trigger
+    | StmtCall Call
     | StmtInclude FilePath
     | StmtMain [FilePath]
     <<stmt-type>>
@@ -662,7 +664,7 @@ stmt :: Decoder Stmt
 stmt = union (
        (StmtAction  <$> constructor "Action" auto)
     <> (StmtRule    <$> constructor "Rule" auto)
-    <> (StmtTrigger <$> constructor "Trigger" auto)
+    <> (StmtCall <$> constructor "Call" auto)
     <> (StmtInclude <$> constructor "Include" auto)
     <> (StmtMain    <$> constructor "Main" auto)
     <<stmt-decoder>>
@@ -704,8 +706,8 @@ let fileAction = \(target : Text) -> \(deps : List Text) -> \(script : Text) ->
         , dependency = List/map Text Target Target.File deps
         , script = Some script }
 
-let fileTrigger = \(name : Text) -> \(tgt : Text) -> \(deps : List Text) ->
-    trigger name tgt (List/map Text Target Target.File deps)
+let fileCall = \(name : Text) -> \(tgt : Text) -> \(deps : List Text) ->
+    call name [Target.File tgt] (List/map Text Target Target.File deps)
 
 let mainAction = \(deps : List Text) ->
     Stmt.Action
@@ -736,7 +738,7 @@ let Map/Entry = Prelude.Map.Entry
 <<milkshake-convenience>>
 
 in  { Stmt = Stmt
-    , Target = Target, action = action, rule = rule, trigger = trigger
+    , Target = Target, action = action, rule = rule, call = call
     , include = include, main = main
     , fileName = fileName
     , getFiles = getFiles
@@ -763,10 +765,10 @@ in  [ ms.fileRule "compile" (\(tgt : Text) -> \(deps : List Text) ->
         gcc ${Text/concatSep " " deps} -o ${tgt}
         '')
 
-    , ms.trigger "compile"
+    , ms.call "compile"
         [ ms.Target.File "hello.o" ]
         [ ms.Target.File "hello.c" ]
-    , ms.trigger "link"
+    , ms.call "link"
         [ ms.Target.File "hello" ]
         [ ms.Target.File "hello.o" ]
 
@@ -782,7 +784,7 @@ in  [ ms.fileRule "compile" (\(tgt : Text) -> \(deps : List Text) ->
 {-| Transposed data record of a list of `Stmt`. -}
 data Config = Config
     { rules      :: M.Map Text Generator
-    , triggers   :: [Trigger]
+    , triggers   :: [Call]
     , actions    :: [Action]
     , includes   :: [FilePath]
     , mainTarget :: [FilePath]
@@ -796,7 +798,7 @@ stmtsToConfig :: [Stmt] -> Config
 stmtsToConfig = foldMap toConfig
     where toConfig (StmtAction a) = mempty { actions = [a] }
           toConfig (StmtRule Rule {..})   = mempty { rules = M.singleton name gen }
-          toConfig (StmtTrigger t) = mempty { triggers = [t] }
+          toConfig (StmtCall t) = mempty { triggers = [t] }
           toConfig (StmtInclude i) = mempty { includes = [i] }
           toConfig (StmtMain m) = mempty { mainTarget = m }
           toConfig (StmtWatch w) = mempty { watches = [w] }
@@ -814,7 +816,7 @@ import RIO
 import Test.Hspec
 
 import Milkshake.Data (Action(..), Target(..), readStmts, Config(..), stmtsToConfig)
-import Milkshake.Run (enter, fromTrigger)
+import Milkshake.Run (enter, fromCall)
 
 import Development.Shake (shake, shakeOptions)
 import Util (runInTmp)
@@ -827,7 +829,7 @@ spec = describe "Layer2" $ do
     it "can run all actions" $ runInTmp ["./test/Layer1/hello.c", "./test/Layer2/*"] $ do
         cfg <- stmtsToConfig <$> readStmts "./test2.dhall"
         (actions cfg) `shouldSatisfy` any (\Action{..} -> target == [Phony "main"])
-        case mapM (fromTrigger cfg) (triggers cfg) of
+        case mapM (fromCall cfg) (triggers cfg) of
             Left e -> throwM e
             Right as -> do
                 let actionList = (actions cfg) <> as
@@ -908,15 +910,15 @@ spec = describe "Layer3" $ do
 ```
 
 ``` {.haskell file=src/Milkshake/Run.hs}
-fromTrigger :: Config -> Trigger -> Either MilkshakeError Action
-fromTrigger cfg Trigger{..} = case rule of
+fromCall :: Config -> Call -> Either MilkshakeError Action
+fromCall cfg Call{..} = case rule of
     Just r  -> Right $ Action target dependency (r target dependency)
     Nothing -> Left $ ConfigError $ "No such rule: " <> name
     where rule = rules cfg M.!? name
 
 immediateActions :: Config -> Either MilkshakeError [Action]
 immediateActions cfg@Config{..} = do
-    triggered <- mapM (fromTrigger cfg) triggers
+    triggered <- mapM (fromCall cfg) triggers
     return $ actions <> triggered
 
 loadIncludes :: (MonadThrow m, MonadIO m) => Config -> m Config
@@ -1097,13 +1099,13 @@ let Map/Entry = Prelude.Map.Entry
 <<milkshake-convenience>>
 
 in  { Stmt = Stmt
-    , Target = Target, action = action, rule = rule, trigger = trigger
+    , Target = Target, action = action, rule = rule, call = call
     , include = include, main = main
     , fileName = fileName
     , getFiles = getFiles
     , fileRule = fileRule
-    , fileAction = fileAction, fileTrigger = fileTrigger
-    , mainAction = mainAction
+    , fileAction = fileAction, fileCall = fileCall
+    , mainAction = mainAction, watch = watch
     }
 ```
 

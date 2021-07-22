@@ -54,22 +54,22 @@ data Rule = Rule
 instance FromDhall Rule
 -- ~\~ end
 -- ~\~ begin <<docs/milkshake.md|haskell-types>>[3]
-{-| The `Trigger` is like a function call, where the `Rule` is the function
+{-| The `Call` is like a function call, where the `Rule` is the function
     and `target` and `dependecy` are the arguments. -}
-data Trigger = Trigger
+data Call = Call
     { name :: Text                  -- ^ the name of the rule to trigger
     , target :: [ Target ]          -- ^ the targets
     , dependency :: [ Target ]      -- ^ the dependencies
     } deriving (Generic, Show)
 
-instance FromDhall Trigger
+instance FromDhall Call
 -- ~\~ end
 -- ~\~ begin <<docs/milkshake.md|haskell-types>>[4]
 {-| The 'Stmt' type encodes lines in a Milkshake configuration. -}
 data Stmt
     = StmtAction Action         {-^ -}
     | StmtRule Rule
-    | StmtTrigger Trigger
+    | StmtCall Call
     | StmtInclude FilePath
     | StmtMain [FilePath]
     -- ~\~ begin <<docs/milkshake.md|stmt-type>>[0]
@@ -85,7 +85,7 @@ stmt :: Decoder Stmt
 stmt = union (
        (StmtAction  <$> constructor "Action" auto)
     <> (StmtRule    <$> constructor "Rule" auto)
-    <> (StmtTrigger <$> constructor "Trigger" auto)
+    <> (StmtCall <$> constructor "Call" auto)
     <> (StmtInclude <$> constructor "Include" auto)
     <> (StmtMain    <$> constructor "Main" auto)
     -- ~\~ begin <<docs/milkshake.md|stmt-decoder>>[0]
@@ -100,7 +100,7 @@ readStmts path = liftIO $ input (list stmt) (T.pack path)
 {-| Transposed data record of a list of `Stmt`. -}
 data Config = Config
     { rules      :: M.Map Text Generator
-    , triggers   :: [Trigger]
+    , triggers   :: [Call]
     , actions    :: [Action]
     , includes   :: [FilePath]
     , mainTarget :: [FilePath]
@@ -114,7 +114,7 @@ stmtsToConfig :: [Stmt] -> Config
 stmtsToConfig = foldMap toConfig
     where toConfig (StmtAction a) = mempty { actions = [a] }
           toConfig (StmtRule Rule {..})   = mempty { rules = M.singleton name gen }
-          toConfig (StmtTrigger t) = mempty { triggers = [t] }
+          toConfig (StmtCall t) = mempty { triggers = [t] }
           toConfig (StmtInclude i) = mempty { includes = [i] }
           toConfig (StmtMain m) = mempty { mainTarget = m }
           toConfig (StmtWatch w) = mempty { watches = [w] }

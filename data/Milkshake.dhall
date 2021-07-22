@@ -35,7 +35,7 @@ let Action : Type =
     } //\\ (Dependency (List Target) (List Target))
 -- ~\~ end
 -- ~\~ begin <<docs/milkshake.md|milkshake-trigger>>[0]
-let Trigger : Type =
+let Call : Type =
     { name : Text
     } //\\ (Dependency (List Target) (List Target))
 -- ~\~ end
@@ -56,7 +56,7 @@ let Watch : Type =
 let Stmt : Type =
     < Action  : Action
     | Rule    : Rule
-    | Trigger : Trigger
+    | Call : Call
     | Include : Text
     | Watch   : Watch
     | Main    : List Text >
@@ -65,10 +65,12 @@ let action = \(tgt : List Target) -> \(dep : List Target) -> \(script : Optional
     Stmt.Action { target = tgt, dependency = dep, script = script }
 let rule = \(name : Text) -> \(gen : Generator) ->
     Stmt.Rule { name = name, gen = gen }
-let trigger = \(name : Text) -> \(tgt : List Target) -> \(dep : List Target) ->
-    Stmt.Trigger { name = name, target = tgt, dependency = dep }
+let call = \(name : Text) -> \(tgt : List Target) -> \(dep : List Target) ->
+    Stmt.Call { name = name, target = tgt, dependency = dep }
 let include = Stmt.Include
 let main = Stmt.Main
+let watch = \(paths : List Text) -> \(tgt : Target) ->
+    Stmt.Watch { paths = paths, target = tgt }
 -- ~\~ end
 -- ~\~ begin <<docs/milkshake.md|milkshake-convenience>>[0]
 let fileName = \(a : Target) ->
@@ -99,8 +101,8 @@ let fileAction = \(target : Text) -> \(deps : List Text) -> \(script : Text) ->
         , dependency = List/map Text Target Target.File deps
         , script = Some script }
 
-let fileTrigger = \(name : Text) -> \(tgt : Text) -> \(deps : List Text) ->
-    trigger name tgt (List/map Text Target Target.File deps)
+let fileCall = \(name : Text) -> \(tgt : Text) -> \(deps : List Text) ->
+    call name [Target.File tgt] (List/map Text Target Target.File deps)
 
 let mainAction = \(deps : List Text) ->
     Stmt.Action
@@ -110,13 +112,13 @@ let mainAction = \(deps : List Text) ->
 -- ~\~ end
 
 in  { Stmt = Stmt
-    , Target = Target, action = action, rule = rule, trigger = trigger
+    , Target = Target, action = action, rule = rule, call = call
     , include = include, main = main
     , fileName = fileName
     , getFiles = getFiles
     , fileRule = fileRule
-    , fileAction = fileAction, fileTrigger = fileTrigger
-    , mainAction = mainAction
+    , fileAction = fileAction, fileCall = fileCall
+    , mainAction = mainAction, watch = watch
     }
 -- ~\~ end
 -- ~\~ begin <<docs/milkshake.md|final-schema>>[1]

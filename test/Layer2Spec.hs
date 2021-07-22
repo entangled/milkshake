@@ -8,7 +8,7 @@ import RIO
 import Test.Hspec
 
 import Milkshake.Data (Action(..), Target(..), readStmts, Config(..), stmtsToConfig)
-import Milkshake.Run (enter, fromTrigger)
+import Milkshake.Run (enter, fromCall)
 
 import Development.Shake (shake, shakeOptions)
 import Util (runInTmp)
@@ -21,7 +21,7 @@ spec = describe "Layer2" $ do
     it "can run all actions" $ runInTmp ["./test/Layer1/hello.c", "./test/Layer2/*"] $ do
         cfg <- stmtsToConfig <$> readStmts "./test2.dhall"
         (actions cfg) `shouldSatisfy` any (\Action{..} -> target == [Phony "main"])
-        case mapM (fromTrigger cfg) (triggers cfg) of
+        case mapM (fromCall cfg) (triggers cfg) of
             Left e -> throwM e
             Right as -> do
                 let actionList = (actions cfg) <> as

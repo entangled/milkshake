@@ -14,10 +14,10 @@ in  [ ms.fileRule "compile" (\(tgt : Text) -> \(deps : List Text) ->
         gcc ${Text/concatSep " " deps} -o ${tgt}
         '')
 
-    , ms.trigger "compile"
+    , ms.call "compile"
         [ ms.Target.File "hello.o" ]
         [ ms.Target.File "hello.c" ]
-    , ms.trigger "link"
+    , ms.call "link"
         [ ms.Target.File "hello" ]
         [ ms.Target.File "hello.o" ]
 

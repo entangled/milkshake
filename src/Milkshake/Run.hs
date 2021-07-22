@@ -52,15 +52,15 @@ runScript :: Text -> Shake.Action ()
 runScript = mapM_ (Shake.cmd_ Shake.Shell) . lines . T.unpack
 -- ~\~ end
 -- ~\~ begin <<docs/milkshake.md|src/Milkshake/Run.hs>>[1]
-fromTrigger :: Config -> Trigger -> Either MilkshakeError Action
-fromTrigger cfg Trigger{..} = case rule of
+fromCall :: Config -> Call -> Either MilkshakeError Action
+fromCall cfg Call{..} = case rule of
     Just r  -> Right $ Action target dependency (r target dependency)
     Nothing -> Left $ ConfigError $ "No such rule: " <> name
     where rule = rules cfg M.!? name
 
 immediateActions :: Config -> Either MilkshakeError [Action]
 immediateActions cfg@Config{..} = do
-    triggered <- mapM (fromTrigger cfg) triggers
+    triggered <- mapM (fromCall cfg) triggers
     return $ actions <> triggered
 
 loadIncludes :: (MonadThrow m, MonadIO m) => Config -> m Config
