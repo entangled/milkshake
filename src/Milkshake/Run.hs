@@ -19,6 +19,10 @@ targetPath :: Target -> Maybe FilePath
 targetPath (File path) = Just $ T.unpack path
 targetPath _ = Nothing
 
+isFileTarget :: Target -> Bool
+isFileTarget (File _) = True
+isFileTarget _        = False
+
 enter :: Action -> Shake.Rules ()
 -- ~\~ begin <<lit/index.md|enter-action>>[0]
 enter Action{ target = [File path], .. } =
@@ -30,10 +34,18 @@ enter Action{ target = [File path], .. } =
 enter Action { target = [Phony n], .. }
     | n == "main" = Shake.want $ mapMaybe targetPath dependency
     -- ~\~ begin <<lit/index.md|enter-phony>>[0]
-    -- add phony targets
+    | otherwise   = Shake.phony (T.unpack n) $ do
+        Shake.need $ mapMaybe targetPath dependency
+        mapM_ runScript script
     -- ~\~ end
-    | otherwise   = mempty
 -- ~\~ end
+enter Action { target = ts@(_:_), .. }
+    | all isFileTarget ts =
+          tgtPaths Shake.&%> \_ -> do
+              Shake.need $ mapMaybe targetPath dependency
+              mapM_ runScript script
+    | otherwise           = mempty
+    where tgtPaths = mapMaybe targetPath ts
 enter _ = mempty
 
 runScript :: Text -> Shake.Action ()

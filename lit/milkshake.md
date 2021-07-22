@@ -372,7 +372,7 @@ int main() {
 }
 ```
 
-### Example 2: Virtual targets, databases
+### Example 2: Virtual targets, databases, NYI
 Don't know if we actually need this. For the moment, keep everything file based.
 
 ``` {.dhall file=test/Layer1/test2.dhall}
@@ -446,8 +446,19 @@ targetPath :: Target -> Maybe FilePath
 targetPath (File path) = Just $ T.unpack path
 targetPath _ = Nothing
 
+isFileTarget :: Target -> Bool
+isFileTarget (File _) = True
+isFileTarget _        = False
+
 enter :: Action -> Shake.Rules ()
 <<enter-action>>
+enter Action { target = ts@(_:_), .. }
+    | all isFileTarget ts =
+          tgtPaths Shake.&%> \_ -> do
+              Shake.need $ mapMaybe targetPath dependency
+              mapM_ runScript script
+    | otherwise           = mempty
+    where tgtPaths = mapMaybe targetPath ts
 enter _ = mempty
 
 runScript :: Text -> Shake.Action ()
@@ -470,11 +481,12 @@ The `main` target:
 enter Action { target = [Phony n], .. }
     | n == "main" = Shake.want $ mapMaybe targetPath dependency
     <<enter-phony>>
-    | otherwise   = mempty
 ```
 
 ``` {.haskell #enter-phony}
--- add phony targets
+| otherwise   = Shake.phony (T.unpack n) $ do
+    Shake.need $ mapMaybe targetPath dependency
+    mapM_ runScript script
 ```
 
 #### Run in tmp
