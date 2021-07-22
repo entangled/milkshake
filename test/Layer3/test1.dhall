@@ -10,14 +10,3 @@ in  [ ms.fileAction "include.dhall" ([] : List Text)
     , ms.main ["answer.txt"]
     ]
 -- ~\~ end
--- ~\~ begin <<lit/milkshake.md|test/Layer3/test1.dhall>>[0]
-let ms = ./schema.dhall
-
-in  [ ms.fileAction "include.dhall" ([] : List Text)
-        ''
-        dhall <<< "./template.dhall 42" > include.dhall
-        ''
-    , ms.include "include.dhall"
-    , ms.main ["answer.txt"]
-    ]
--- ~\~ end
