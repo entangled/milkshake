@@ -1,5 +1,5 @@
 -- ~\~ language=Dhall filename=test/basic/rules.dhall
--- ~\~ begin <<docs/milkshake.md|test/basic/rules.dhall>>[0]
+-- ~\~ begin <<lit/milkshake.md|test/basic/rules.dhall>>[0]
 let Target : Type = < File : Text | Eval : Text >
 
 let Rule : Type = { target : Text

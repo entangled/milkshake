@@ -1,5 +1,5 @@
 -- ~\~ language=Haskell filename=test/Util.hs
--- ~\~ begin <<docs/milkshake.md|test/Util.hs>>[0]
+-- ~\~ begin <<lit/milkshake.md|test/Util.hs>>[0]
 {-# LANGUAGE NoImplicitPrelude,DuplicateRecordFields,OverloadedLabels #-}
 module Util (runInTmp, runWithLogger) where
 
@@ -21,5 +21,5 @@ runInTmp cpy action = do
 runWithLogger :: MonadUnliftIO m => RIO LogFunc a -> m a
 runWithLogger action = do
     logOptions <- logOptionsHandle stderr True
-    withLogFunc logOptions (\logFunc -> runRIO logFunc action)
+    withLogFunc logOptions (`runRIO` action)
 -- ~\~ end

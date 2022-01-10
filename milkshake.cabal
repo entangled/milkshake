@@ -10,8 +10,7 @@ description:         Milkshake is a build system that can run workflows automati
                      to execute the build.
 
                      This library is written in literate form using
-                     [Entangled](https://entangled.github.io). The literate source can
-                     be viewed at [the Milkshake homepage](https://entangled.github.io/milkshake).
+                     Entangled (https://entangled.github.io).
 
 homepage:            https://entangled.github.io/milkshake
 bug-reports:         https://github.com/entangled/milkshake

@@ -1,5 +1,5 @@
 -- ~\~ language=Dhall filename=test/Layer1/test2.dhall
--- ~\~ begin <<docs/milkshake.md|test/Layer1/test2.dhall>>[0]
+-- ~\~ begin <<lit/milkshake.md|test/Layer1/test2.dhall>>[0]
 let ms = ./schema.dhall
 let entry =
     { name = "entry"

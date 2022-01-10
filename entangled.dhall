@@ -4,8 +4,7 @@ let entangled = https://raw.githubusercontent.com/entangled/entangled/v1.2.2/dat
 let languages = entangled.languages #
     [ { name = "Dot", identifiers = ["dot", "graphviz"], comment = entangled.comments.hash } ]
 
-in { entangled = entangled.Config :: { database = Some ".entangled/db.sqlite"
-                                     , watchList = [ "docs/milkshake.md" ] : List Text
+in { entangled = entangled.Config :: { watchList = [ "lit/milkshake.md" ] : List Text
                                      , languages = languages
                                      }
    }

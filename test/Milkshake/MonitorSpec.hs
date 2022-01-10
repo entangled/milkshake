@@ -1,5 +1,5 @@
 -- ~\~ language=Haskell filename=test/Milkshake/MonitorSpec.hs
--- ~\~ begin <<docs/milkshake.md|test/Milkshake/MonitorSpec.hs>>[0]
+-- ~\~ begin <<lit/milkshake.md|test/Milkshake/MonitorSpec.hs>>[0]
 {-# LANGUAGE MultiParamTypeClasses #-}
 module Milkshake.MonitorSpec (spec) where
 

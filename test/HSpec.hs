@@ -1,5 +1,5 @@
 -- ~\~ language=Haskell filename=test/HSpec.hs
--- ~\~ begin <<docs/milkshake.md|test/HSpec.hs>>[0]
+-- ~\~ begin <<lit/milkshake.md|test/HSpec.hs>>[0]
 {-# LANGUAGE NoImplicitPrelude #-}
 module HSpec (spec) where
 
@@ -12,5 +12,5 @@ spec = do
         it "1 + 1 == 2" $ do
             1 + 1 `shouldBe` (2 :: Int)
         it "2 + 2 != 5" $ do
-            2 + 2 `shouldNotBe` 5
+            2 + 2 `shouldNotBe` (5 :: Int)
 -- ~\~ end
