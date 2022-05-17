@@ -1,6 +1,6 @@
 ---
 title: "Milkshake"
-subtitle: "Combining Shake with Dhall to make a minimal build system.
+subtitle: "Combining Shake with Dhall to make a minimal build system."
 ---
 
 [![Entangled badge](https://img.shields.io/badge/entangled-Use%20the%20source!-%2300aeff)](https://entangled.github.io/)
