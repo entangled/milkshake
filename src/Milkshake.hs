@@ -117,6 +117,8 @@ in [ ms.fileRule "rot13" (\\(tgt : Text) -> \\(deps : List Text) ->
 -- ~\~ end
 -- ~\~ begin <<lit/milkshake.md|src/Milkshake.hs>>[1]
 module Milkshake ( Config(..)
+                 , Stmt(..)
+                 , stmtsToConfig
                  , readConfig
                  , loadIncludes
                  , WatchManager
@@ -132,7 +134,7 @@ module Milkshake ( Config(..)
                  , immediateActions
                  ) where
 
-import Milkshake.Data ( readConfig, Config(..) )
+import Milkshake.Data ( readConfig, Config(..), Stmt(..), stmtsToConfig )
 import Milkshake.Run ( enter, loadIncludes, immediateActions )
 import Milkshake.Monitor ( WatchManager, Event, monitor, HasWatchManager(..), HasEventChannel(..), withWatchManager )
 

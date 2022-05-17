@@ -8,13 +8,13 @@ target := $(target_dir)/%s
 ]]
 
 function CodeBlock(block)
-    if block.classes[1] == "make" then
+    if block.classes[1] == "make" and block.classes[2] == "figure" then
         local caption, rawsrc = block.text:match("(.-)\n%-%-%-\n(.*)")
         if not caption then
             rawsrc = block.text
             caption = ""
         end
-        outfile = block.attributes["target"]
+        local outfile = block.attributes["target"]
         system.with_temporary_directory("run-make", function (tmpdir)
             local src = make_preamble:format("docs", outfile) .. rawsrc
             local f = io.open(tmpdir .. "/Makefile", "w")
