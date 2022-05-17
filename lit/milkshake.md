@@ -1,17 +1,25 @@
 # Milkshake
 A normal build system is mostly file-system based. Every task is designated a target file and a list of dependencies. When a file somewhere down the line is updated, you rerun `make` and only the affected part of the dependency tree is updated, like so:
 
-``` {.mermaid}
-graph TD
-    a --> b
-    b --> e
-    c["c (changed)"] --> e
-    d --> f
-    e --> g["g (target)"]
-    f --> g
-    style c fill:#fcc
-    style e fill:#fcc
-    style g fill:#fcc
+``` {.graphviz file=build/build-graph.dot .hide}
+digraph g {
+    node [shape=box, style=filled];
+    a -> b
+    b -> c
+    c -> e
+    d -> f
+    e -> g
+    f -> g
+
+    c [label="c (changed)",color="#ffccff"]
+    g [label="g (target)",color="#ffcccc"]
+    e [color="#ffcccc"]
+}
+```
+
+``` {.make .figure target=fig/build-graph.svg}
+$(target): build/build-graph.dot
+    dot $< -Tsvg > $@
 ```
 
 This simple principle can be written down in a `Makefile`
@@ -1284,6 +1292,8 @@ in [ ms.fileRule "rot13" (\\(tgt : Text) -> \\(deps : List Text) ->
 
 ``` {.haskell file=src/Milkshake.hs}
 module Milkshake ( Config(..)
+                 , Stmt(..)
+                 , stmtsToConfig
                  , readConfig
                  , loadIncludes
                  , WatchManager
@@ -1299,7 +1309,7 @@ module Milkshake ( Config(..)
                  , immediateActions
                  ) where
 
-import Milkshake.Data ( readConfig, Config(..) )
+import Milkshake.Data ( readConfig, Config(..), Stmt(..), stmtsToConfig )
 import Milkshake.Run ( enter, loadIncludes, immediateActions )
 import Milkshake.Monitor ( WatchManager, Event, monitor, HasWatchManager(..), HasEventChannel(..), withWatchManager )
 

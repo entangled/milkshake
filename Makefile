@@ -12,6 +12,7 @@ pandoc_args += --syntax-definition .entangled/syntax/dhall.xml
 pandoc_args += --section-divs
 pandoc_args += --lua-filter .entangled/scripts/hide.lua
 pandoc_args += --lua-filter .entangled/scripts/annotate.lua
+pandoc_args += --lua-filter .entangled/scripts/make.lua
 pandoc_input := README.md $(wildcard lit/*.md)
 pandoc_output := docs/index.html
 
