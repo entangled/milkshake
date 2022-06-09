@@ -84,6 +84,6 @@ loadIncludes cfg@Config{includes=[]} = return cfg
 loadIncludes cfg@Config{includes} = do
     actions <- either throwM return $ immediateActions cfg
     liftIO $ shake shakeOptions (mapM_ enter actions >> Shake.want includes)
-    stmts <- foldMapM readStmts (map ("./" <>) includes)
+    stmts <- foldMapM readStmts (map (T.pack . ("./" <>)) includes)
     loadIncludes $ cfg {includes = mempty} <> stmtsToConfig stmts
 -- ~\~ end

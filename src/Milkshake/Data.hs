@@ -107,8 +107,8 @@ stmt = union (
     )
 
 {-| Read a list of statements from a script. -}
-readStmts :: (MonadIO m) => FilePath -> m [Stmt]
-readStmts path = liftIO $ input (list stmt) (T.pack path)
+readStmts :: (MonadIO m) => Text -> m [Stmt]
+readStmts path = liftIO $ input (list stmt) path
 -- ~\~ end
 -- ~\~ begin <<lit/milkshake.md|haskell-types>>[5]
 {-| Transposed data record of a list of `Stmt`. -}
@@ -134,7 +134,7 @@ stmtsToConfig = foldMap toConfig
           toConfig (StmtWatch w) = mempty { watches = [w] }
 
 {-| Read a script directly to `Config` record. -}
-readConfig :: (MonadIO m) => FilePath -> m Config
+readConfig :: (MonadIO m) => Text -> m Config
 readConfig f = stmtsToConfig <$> readStmts f
 -- ~\~ end
 -- ~\~ begin <<lit/milkshake.md|haskell-types>>[6]

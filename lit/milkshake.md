@@ -703,8 +703,8 @@ stmt = union (
     )
 
 {-| Read a list of statements from a script. -}
-readStmts :: (MonadIO m) => FilePath -> m [Stmt]
-readStmts path = liftIO $ input (list stmt) (T.pack path)
+readStmts :: (MonadIO m) => Text -> m [Stmt]
+readStmts path = liftIO $ input (list stmt) path
 ```
 
 ###  Function transformers
@@ -837,7 +837,7 @@ stmtsToConfig = foldMap toConfig
           toConfig (StmtWatch w) = mempty { watches = [w] }
 
 {-| Read a script directly to `Config` record. -}
-readConfig :: (MonadIO m) => FilePath -> m Config
+readConfig :: (MonadIO m) => Text -> m Config
 readConfig f = stmtsToConfig <$> readStmts f
 ```
 
@@ -965,7 +965,7 @@ loadIncludes cfg@Config{includes=[]} = return cfg
 loadIncludes cfg@Config{includes} = do
     actions <- either throwM return $ immediateActions cfg
     liftIO $ shake shakeOptions (mapM_ enter actions >> Shake.want includes)
-    stmts <- foldMapM readStmts (map ("./" <>) includes)
+    stmts <- foldMapM readStmts (map (T.pack . ("./" <>)) includes)
     loadIncludes $ cfg {includes = mempty} <> stmtsToConfig stmts
 ```
 
