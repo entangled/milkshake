@@ -52,7 +52,7 @@ runAction cfg tgts = do
     actions <- either throwM return $ immediateActions cfg
     liftIO $ shake shakeOptions (mapM_ enter actions >> want tgts)
 
-mainLoop :: FilePath -> RIO Env ()
+mainLoop :: Text -> RIO Env ()
 mainLoop path = do
     cfg <- loadIncludes =<< readConfig path
     chan <- view eventChannel
@@ -66,7 +66,7 @@ mainLoop path = do
         _           -> return ()
     mainLoop path
 
-runMain :: FilePath -> RIO Env ()
+runMain :: Text -> RIO Env ()
 runMain path = do
     cfg <- loadIncludes =<< readConfig path
     runAction cfg []
@@ -74,6 +74,6 @@ runMain path = do
 main :: IO ()
 main = do
     args <- execParser argParser
-    let path = inputFile args
+    let path = T.pack (inputFile args)
     runEnv $ if (runOnce args) then runMain path else mainLoop path 
 -- ~\~ end
