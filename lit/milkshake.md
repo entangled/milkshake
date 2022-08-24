@@ -319,6 +319,7 @@ data Action = Action
     } deriving (Generic, Show)
 
 instance FromDhall Action
+instance ToDhall Action
 ```
 
 This system of `Content`, `Target` and `Action` should suffice to describe every single instance of a build sequence.
@@ -642,6 +643,7 @@ data Call = Call
     } deriving (Generic, Show)
 
 instance FromDhall Call
+instance ToDhall Call
 ```
 
 ### Statements
@@ -1127,6 +1129,7 @@ data Watch = Watch
     } deriving (Generic)
 
 instance FromDhall Watch
+instance ToDhall Watch
 ```
 
 ``` {.haskell #stmt-type}

@@ -48,6 +48,7 @@ data Action = Action
     } deriving (Generic, Show)
 
 instance FromDhall Action
+instance ToDhall Action
 -- ~\~ end
 -- ~\~ begin <<lit/milkshake.md|haskell-types>>[2]
 {-| Function type for generating a script to convert a `Rule` into a specific
@@ -74,6 +75,7 @@ data Call = Call
     } deriving (Generic, Show)
 
 instance FromDhall Call
+instance ToDhall Call
 -- ~\~ end
 -- ~\~ begin <<lit/milkshake.md|haskell-types>>[4]
 {-| The Milkshake script is an unordered list of statements. The 'Stmt' type 
@@ -146,5 +148,6 @@ data Watch = Watch
     } deriving (Generic)
 
 instance FromDhall Watch
+instance ToDhall Watch
 -- ~\~ end
 -- ~\~ end
