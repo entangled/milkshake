@@ -1,5 +1,5 @@
 -- ~\~ language=Dhall filename=test/Layer2/test2.dhall
--- ~\~ begin <<lit/milkshake.md|test/Layer2/test2.dhall>>[0]
+-- ~\~ begin <<lit/milkshake.md|test/Layer2/test2.dhall>>[init]
 let Text/concatSep = https://prelude.dhall-lang.org/Text/concatSep
     sha256:e4401d69918c61b92a4c0288f7d60a6560ca99726138ed8ebc58dca2cd205e58
 

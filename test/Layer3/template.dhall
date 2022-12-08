@@ -1,5 +1,5 @@
 -- ~\~ language=Dhall filename=test/Layer3/template.dhall
--- ~\~ begin <<lit/milkshake.md|test/Layer3/template.dhall>>[0]
+-- ~\~ begin <<lit/milkshake.md|test/Layer3/template.dhall>>[init]
 let ms = ./schema.dhall
 
 in \(x : Natural) ->

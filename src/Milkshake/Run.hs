@@ -1,5 +1,5 @@
 -- ~\~ language=Haskell filename=src/Milkshake/Run.hs
--- ~\~ begin <<lit/milkshake.md|src/Milkshake/Run.hs>>[0]
+-- ~\~ begin <<lit/milkshake.md|src/Milkshake/Run.hs>>[init]
 {-# LANGUAGE DuplicateRecordFields,OverloadedLabels #-}
 {-|
 Contains functions to execute the script using Shake.
@@ -34,7 +34,7 @@ isFileTarget _        = False
 {-| Create `Shake.Rules` from an `Action`.
  -}
 enter :: Action -> Shake.Rules ()
--- ~\~ begin <<lit/milkshake.md|enter-action>>[0]
+-- ~\~ begin <<lit/milkshake.md|enter-action>>[init]
 enter Action{ target = [File path], .. } =
     T.unpack path Shake.%> \_ -> do
         Shake.need $ mapMaybe targetPath dependency
@@ -43,7 +43,7 @@ enter Action{ target = [File path], .. } =
 -- ~\~ begin <<lit/milkshake.md|enter-action>>[1]
 enter Action { target = [Phony n], .. }
     | n == "main" = Shake.want $ mapMaybe targetPath dependency
-    -- ~\~ begin <<lit/milkshake.md|enter-phony>>[0]
+    -- ~\~ begin <<lit/milkshake.md|enter-phony>>[init]
     | otherwise   = Shake.phony (T.unpack n) $ do
         Shake.need $ mapMaybe targetPath dependency
         mapM_ runScript script

@@ -3,7 +3,7 @@ cabal-version:       3.0
 --   For further documentation, see http://haskell.org/cabal/users-guide/
 
 name:                milkshake
-version:             0.1.0.0
+version:             0.2.0.0
 synopsis:            Minimal build system combining Dhall, Shake and FSNotify.
 description:         Milkshake is a build system that can run workflows automatically
                      on filesystem events. It is configured using Dhall and uses Shake
@@ -26,7 +26,7 @@ extra-source-files:  CHANGELOG.md, README.md, lit/milkshake.md
 common deps
   ghc-options: -Wall
   build-depends:
-      base >=4.13 && <4.15
+      base >=4.13 && <4.18
     , generic-monoid >=0.1 && <0.2
     , rio >=0.1.19 && <0.2
     , dhall >=1.35 && <2

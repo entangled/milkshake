@@ -1,5 +1,5 @@
 -- ~\~ language=Haskell filename=test/Util.hs
--- ~\~ begin <<lit/milkshake.md|test/Util.hs>>[0]
+-- ~\~ begin <<lit/milkshake.md|test/Util.hs>>[init]
 {-# LANGUAGE NoImplicitPrelude,DuplicateRecordFields,OverloadedLabels #-}
 module Util (runInTmp, runWithLogger) where
 

@@ -1,5 +1,5 @@
 -- ~\~ language=Haskell filename=test/Layer1Spec.hs
--- ~\~ begin <<lit/milkshake.md|test/Layer1Spec.hs>>[0]
+-- ~\~ begin <<lit/milkshake.md|test/Layer1Spec.hs>>[init]
 {-# LANGUAGE NoImplicitPrelude,DuplicateRecordFields,OverloadedLabels #-}
 module Layer1Spec (spec) where
 

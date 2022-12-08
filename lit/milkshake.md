@@ -1036,7 +1036,7 @@ globCanon globs = liftIO $ nub <$> (search >>= canonicalize)
 
 {-| Set a watch. -}
 setWatch :: (MonadUnliftIO m, MonadReader env m, HasLogFunc env)
-         => WatchManager -> Chan event 
+         => WatchManager -> Chan event
          -> Watch m event -> m (StopListening m)
 setWatch wm chan (globs, handler) = do
     dirList <- globCanon globs

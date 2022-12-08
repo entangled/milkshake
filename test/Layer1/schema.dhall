@@ -1,11 +1,11 @@
 -- ~\~ language=Dhall filename=test/Layer1/schema.dhall
--- ~\~ begin <<lit/milkshake.md|test/Layer1/schema.dhall>>[0]
+-- ~\~ begin <<lit/milkshake.md|test/Layer1/schema.dhall>>[init]
 let Prelude = https://prelude.dhall-lang.org/v19.0.0/package.dhall
     sha256:eb693342eb769f782174157eba9b5924cf8ac6793897fc36a31ccbd6f56dafe2
 let List/map = Prelude.List.map
 let Text/concatSep = Prelude.Text.concatSep
 
--- ~\~ begin <<lit/milkshake.md|milkshake-target>>[0]
+-- ~\~ begin <<lit/milkshake.md|milkshake-target>>[init]
 let Virtual : Type =
     { name : Text
     , exists : Text    -- Script to check existence
@@ -18,7 +18,7 @@ let Target : Type =
     | Phony : Text
     >
 -- ~\~ end
--- ~\~ begin <<lit/milkshake.md|milkshake-action>>[0]
+-- ~\~ begin <<lit/milkshake.md|milkshake-action>>[init]
 let Dependency = \(Tgt : Type) -> \(Dep : Type) ->
     { target : Tgt
     , dependency : Dep

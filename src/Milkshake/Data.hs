@@ -1,5 +1,5 @@
 -- ~\~ language=Haskell filename=src/Milkshake/Data.hs
--- ~\~ begin <<lit/milkshake.md|src/Milkshake/Data.hs>>[0]
+-- ~\~ begin <<lit/milkshake.md|src/Milkshake/Data.hs>>[init]
 {-| This submodule contains all type definitions and Dhall counterparts.
  -}
 {-# LANGUAGE DuplicateRecordFields,OverloadedLabels #-}
@@ -14,7 +14,7 @@ import qualified RIO.Map as M
 import Data.Monoid.Generic (GenericSemigroup(..), GenericMonoid(..))
 import Dhall (FromDhall, ToDhall, Decoder, union, constructor, auto, input, list)
 
--- ~\~ begin <<lit/milkshake.md|haskell-types>>[0]
+-- ~\~ begin <<lit/milkshake.md|haskell-types>>[init]
 {-| A virtual target is one that is not backed up by a file, but rather by
  something that could be a file. One example would be an entry in an sqlite
  database. This may be a future feature.
@@ -87,7 +87,7 @@ data Stmt
     | StmtCall Call
     | StmtInclude FilePath
     | StmtMain [FilePath]
-    -- ~\~ begin <<lit/milkshake.md|stmt-type>>[0]
+    -- ~\~ begin <<lit/milkshake.md|stmt-type>>[init]
     | StmtWatch Watch
     -- ~\~ end
 
@@ -103,7 +103,7 @@ stmt = union (
     <> (StmtCall <$> constructor "Call" auto)
     <> (StmtInclude <$> constructor "Include" auto)
     <> (StmtMain    <$> constructor "Main" auto)
-    -- ~\~ begin <<lit/milkshake.md|stmt-decoder>>[0]
+    -- ~\~ begin <<lit/milkshake.md|stmt-decoder>>[init]
     <> (StmtWatch   <$> constructor "Watch" auto)
     -- ~\~ end
     )

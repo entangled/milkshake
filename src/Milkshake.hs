@@ -1,5 +1,5 @@
 -- ~\~ language=Haskell filename=src/Milkshake.hs
--- ~\~ begin <<lit/milkshake.md|src/Milkshake.hs>>[0]
+-- ~\~ begin <<lit/milkshake.md|src/Milkshake.hs>>[init]
 {-|
 Module     : Milkshake
 Copyright  : (c) Netherlands eScience Center, 2021

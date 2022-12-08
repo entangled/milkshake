@@ -1,5 +1,5 @@
 -- ~\~ language=Haskell filename=app/Main.hs
--- ~\~ begin <<lit/milkshake.md|app/Main.hs>>[0]
+-- ~\~ begin <<lit/milkshake.md|app/Main.hs>>[init]
 module Main where
 
 import RIO
