@@ -1,4 +1,4 @@
-let ms = ./data/Milkshake.dhall
+let ms = ../../data/Milkshake.dhall
 let Text/concat = https://prelude.dhall-lang.org/Text/concat
 
 in [ ms.fileRule "rot13" (\(tgt : Text) -> \(deps : List Text) -> ''

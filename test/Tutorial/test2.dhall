@@ -1,4 +1,4 @@
-let ms = ./data/Milkshake.dhall
+let ms = ../../data/Milkshake.dhall
 -- https://raw.githubusercontent.com/entangled/milkshake/master/data/Milkshake.dhall
 let Text/concat = https://prelude.dhall-lang.org/Text/concat
 

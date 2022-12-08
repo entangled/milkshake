@@ -1,4 +1,4 @@
-let ms = https://raw.githubusercontent.com/entangled/milkshake/master/data/Milkshake.dhall
+let ms = ../../data/Milkshake.dhall
 
 in [ ms.fileAction "secret.txt" ([] : List Text) ''
          echo "Uryyb, Jbeyq!" > secret.txt
